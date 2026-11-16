@@ -377,3 +377,12 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }
 .legend span { color: #fff; font: 13px var(--display); text-transform: uppercase; padding: 5px 10px; border-radius: 99px; border: 3px solid var(--ink); }
 .earn-line { margin: 6px 0 12px; font-weight: 800; font-size: 14px; }
+
+/* v6: smaller in-round HUD */
+:root { --z: 1; }
+.hud .target { grid-template-columns: 48px 1fr; gap: 10px; padding: 8px 14px 8px 8px; }
+.hud .target img { width: 48px; height: 48px; }
+.hud .target h3 { font-size: 11px; } .hud .target h2 { font-size: 16px; margin: 1px 0 0; }
+.hud .timer { font-size: 24px; padding: 6px 14px; } .hud .timer small { font-size: 10px; }
+.btn.tag-btn { font-size: 20px; padding: 13px 26px; border-radius: 16px; }
+@media (max-width: 760px) { .btn.tag-btn { font-size: 18px; padding: 12px 20px; } }

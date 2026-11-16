@@ -480,7 +480,6 @@
   };
   W.nope = function (id) { const it = W.items.get(id); if (it) { it.wig = 0.5; it.pend = performance.now() + 4000; } };
   /* seekers: the thing you would tag right now (nearest object or disguised hider within reach), and a ring under it */
-  let tagRing = null;
   function tagCand() {
     const m = W.me; if (!m || W.role !== 'seeker' || !W.seeking) return null; let best = null, bs = 1e9;
     /* within reach, the one you are facing wins over the one that is merely nearest */
@@ -503,7 +502,8 @@
     anim.push({ once: true, fn: () => { const k = (performance.now() - t0) / 1300; if (k >= 1) { scene.remove(sp); return true; } sp.position.y = y + k * 1.6; sp.material.opacity = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3; } }); }
   W.floatText = floatText;
   let marker = null;
-  function showMarker(x, z) { if (!marker) { marker = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.62, 32), new THREE.MeshBasicMaterial({ color: K, transparent: true, depthWrite: false })); marker.rotation.x = -Math.PI / 2; scene.add(marker); } marker.position.set(x, 0.05, z); marker.visible = true; marker.userData.t0 = performance.now(); }
+  function showMarker(x, z) { return;   /* no click marker on the ground */
+    if (!marker) { marker = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.62, 32), new THREE.MeshBasicMaterial({ color: K, transparent: true, depthWrite: false })); marker.rotation.x = -Math.PI / 2; scene.add(marker); } marker.position.set(x, 0.05, z); marker.visible = true; marker.userData.t0 = performance.now(); }
 
   /* ---------------- input ---------------- */
   const touch = matchMedia('(pointer: coarse)').matches; W.touch = touch;
@@ -590,8 +590,7 @@
       sun.position.set(m.x + 22, 46, m.z + 26); sun.target.position.set(m.x, 0, m.z); sun.target.updateMatrixWorld();
       /* trees and parasols near you fade so nothing hides under them */
       for (const c of (groups[W.mapKey] && groups[W.mapKey].userData.canopies) || []) { const d = Math.hypot(c.x - m.x, c.z - m.z), want = d < c.r + 1.5 ? 0.25 : 1; c.mat.opacity += (want - c.mat.opacity) * 0.12; c.out.opacity = c.mat.opacity; c.mat.depthWrite = c.mat.opacity > 0.95; }
-      { const c = tagCand(); if (c && !tagRing) { tagRing = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.15, 40), new THREE.MeshBasicMaterial({ color: K, depthTest: false, transparent: true })); tagRing.rotation.x = -Math.PI / 2; tagRing.renderOrder = 5; scene.add(tagRing); }
-        if (tagRing) { tagRing.visible = !!c; if (c) { tagRing.position.set(c.x, c.y + 0.05, c.z); tagRing.scale.setScalar(1 + Math.sin(t * 6) * 0.06); } } W.canTag = !!c; }
+      W.canTag = !!tagCand();   /* no ring on the ground: the TAG button lights up when something is in reach */
     }
     W.others.forEach(o => { const k = Math.min(1, dt * 10); o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; o.z += (o.tz - o.z) * k; let d = o.try - o.ry; d = Math.atan2(Math.sin(d), Math.cos(d)); o.ry += d * k; if (now - o.lastAt > 350) o.moving = false;
       o.g.visible = !(W.blind && o.info.asProp) && !o.info.ghost; o.g.position.set(o.x, o.y, o.z); o.g.rotation.y = o.ry; o.g.userData.av.userData.anim(t, dt, { moving: o.moving, running: !!(o.f & 2), speed: 1.1, jumping: o.y > 0.05 }); if (o.g.userData.pet) petFollow(o.g, o, t, dt, o.moving); });
