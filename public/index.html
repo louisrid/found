@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#ffffff">
+<title>FOUND</title>
+<meta name="description" content="A multiplayer voxel object hunt. Pick a thing, find every copy hidden around the house with your friends, open gift boxes.">
+<link rel="icon" href="mark.svg?v=__V__" type="image/svg+xml">
+<link rel="preload" href="fonts/fredoka-700.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css?v=__V__">
+</head>
+<body>
+<canvas id="world" aria-label="The game world"></canvas>
+
+<div id="boot" class="boot"><img src="logo.svg?v=__V__" alt="FOUND"><i class="boot-cube"></i><p id="boot-msg">Loading</p></div>
+
+<!-- home: name, create or join a party, shop and locker -->
+<section id="home" class="home" hidden>
+  <div class="card home-card">
+    <img class="logo" src="logo.svg?v=__V__" alt="FOUND">
+    <p class="tag">Hide as an object. Don't get found.</p>
+    <label class="field"><span>Your name</span><input id="name" maxlength="14" autocomplete="off" spellcheck="false"></label>
+    <button class="btn black big" data-a="create">Create party</button>
+    <div class="join-row">
+      <input id="code" class="code-in" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Party code">
+      <button class="btn big" data-a="join">Join</button>
+    </div>
+    <div class="home-tools">
+      <button class="btn big" data-a="shop">Shop<i class="badge shop-badge" hidden></i></button>
+      <button class="btn big" data-a="locker">Locker</button>
+    </div>
+    <div class="home-tools earn">
+      <button class="btn" data-a="idle" id="idle-b">Collect</button>
+      <button class="btn" data-a="spin" id="spin-b">Daily spin</button>
+      <button class="btn" data-a="mini" id="mini-b">Odd one out</button>
+    </div>
+    <div class="home-foot"><span class="pill coin coins"></span></div>
+  </div>
+</section>
+
+<!-- in a party. Lobby-only pieces carry .lobby-only and vanish during a round. -->
+<section id="hud" class="hud" hidden>
+  <div class="hud-tl">
+    <button class="btn icon" data-a="leave" title="Leave party" aria-label="Leave party">&#x2715;</button>
+    <div class="party-chip lobby-only"><div class="code-tiles" id="code-tiles"></div><button class="btn sm" data-a="copy">Invite</button></div>
+  </div>
+  <div class="hud-tr lobby-only">
+    <span class="pill coin coins"></span>
+    <button class="btn" data-a="shop">Shop<i class="badge shop-badge" hidden></i></button>
+    <button class="btn" data-a="locker">Locker</button>
+  </div>
+  <aside class="board lobby-only" id="board"></aside>
+  <div class="lobby-bar" id="lobby-bar"></div>
+  <div class="target" id="role" hidden></div>
+  <div class="timer" id="timer" hidden></div>
+  <div class="feed" id="feed"></div>
+  <div class="actions" id="actions" hidden>
+    <button class="btn tag-btn" data-a="tag" id="tag">Tag</button>
+  </div>
+  <div class="big-count" id="big-count" hidden></div>
+</section>
+<div class="blind" id="blind" hidden><h2>Hiders are hiding</h2><b id="blind-n"></b><p>You seek when the timer ends.</p></div>
+
+<div class="joy" id="joy" hidden><i></i></div>
+<button class="btn round jump" id="jump" hidden aria-label="Jump">&#x2191;</button>
+
+<div id="layer" class="layer" hidden></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script src="three.min.js?v=__V__"></script>
+<script src="catalog.js?v=__V__"></script>
+<script src="objects.js?v=__V__"></script>
+<script src="layout.js?v=__V__"></script>
+<script src="avatar-data.js?v=__V__"></script>
+<script src="avatar.js?v=__V__"></script>
+<script src="world.js?v=__V__"></script>
+<script src="app.js?v=__V__"></script>
+</body>
+</html>

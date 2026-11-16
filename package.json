@@ -1,0 +1,19 @@
+{
+  "name": "found",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FOUND: multiplayer voxel prop hunt. Hide as an object, do not get found.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/unit.mjs && node tests/integration.mjs",
+    "test:browser": "python3 tests/browser.py"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "postgres": "3.4.9",
+    "ws": "^8.18.0"
+  }
+}
