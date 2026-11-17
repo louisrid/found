@@ -446,3 +446,6 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 .menu-open-row .menu-open kbd { font: 15px var(--display); background: #fff; color: var(--ink); border: 3px solid var(--ink); border-radius: 7px; padding: 1px 7px; }
 .menu-open-row .gear { width: 57px; height: 57px; font-size: 29px; border-width: 5px; box-shadow: 5px 5px 0 var(--ink); border-radius: 18px; }
 @media (max-width: 760px) { .menu-open-row .menu-open kbd { display: none; } }
+
+/* hint and move-bonus line under the role card's title */
+.role-hint { margin: 4px 0 0; font: 13px/1.2 var(--display); text-transform: uppercase; color: #2f5bff; max-width: 30ch; }

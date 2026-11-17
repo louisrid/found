@@ -405,9 +405,12 @@
     return map._b.get(Math.floor(x / BK) + ',' + Math.floor(z / BK)) || [];
   }
   /* px, pz: where the circle came from, so a fast step that lands inside a thin wall goes back the way it came */
-  function collide(map, x, z, rad, px, pz) {
+  /* y is how high your feet are: anything whose top is below your feet (or a small step up) doesn't block you */
+  const STEP = 0.35;
+  function collide(map, x, z, rad, px, pz, y) {
     rad = rad || 0.7;
     for (let k = 0; k < 2; k++) for (const c of near(map, x, z)) {
+      if (y != null && y + STEP >= (c.h == null ? 99 : c.h)) continue;
       const cx = Math.max(c.x0, Math.min(x, c.x1)), cz = Math.max(c.z0, Math.min(z, c.z1)), dx = x - cx, dz = z - cz, d2 = dx * dx + dz * dz;
       if (d2 >= rad * rad) continue;
       if (d2 > 1e-6) { const d = Math.sqrt(d2), p = rad - d; x += dx / d * p; z += dz / d * p; }
@@ -422,6 +425,12 @@
     else { x = Math.max(B.x0, Math.min(B.x1, x)); z = Math.max(B.z0, Math.min(B.z1, z)); }
     return [x, z];
   }
+  /* the height you stand at here: the highest top under you that is no more than a small step above your feet */
+  function groundAt(map, x, z, y) {
+    let g = 0; const E = 0.3;
+    for (const c of near(map, x, z)) { const top = c.h == null ? 99 : c.h; if (top <= g || top > y + STEP) continue; if (x >= c.x0 - E && x <= c.x1 + E && z >= c.z0 - E && z <= c.z1 + E) g = top; }
+    return g;
+  }
   const built = new Map(); let Lb = null;
   /* a few recent maps are kept; the standard arrangements (no seed) stay for good */
   const map = (id, seed) => {
@@ -433,6 +442,6 @@
     maps: MAP_IDS, map, info: id => ({ id, name: DEFS[id].name, size: DEFS[id].size, center: DEFS[id].center || [0, 0] }),
     get lobby() { return Lb || (Lb = buildLobby()); },
     get house() { return map('mansion'); },
-    collide, near, rot, T, sound
+    collide, groundAt, near, rot, T, sound
   };
 })(globalThis);

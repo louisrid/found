@@ -120,9 +120,9 @@ test('practice: alone you seek three computer-placed hiders that look like ordin
   for (const it of [...pa.round.items.values()].filter(i => i.bot)) { reach(pa, ps[0], it.x, it.z); assert.ok(pa.tag(ps[0], it.id).found); adv(CFG.tagCooldownMs + 10); }
   assert.equal(pa.phase, 'results');
 });
-test('gift boxes: anyone close can take one; it arrives after the round', () => {
-  const { pa, toSeek, hiders, adv } = party(2); toSeek(); const h = hiders()[0], g = [...pa.round.items.values()].find(i => i.type === 'gift'), b0 = h.prof.boxes;
-  assert.equal(pa.grab(h, g.id).why, 'too far'); reach(pa, h, g.x, g.z); assert.ok(pa.grab(h, g.id).ok); adv(pa.mc.seekMs + 10); assert.equal(h.prof.boxes, b0 + 2);
+test('no gift boxes lie around the maps; boxes come from winning, the daily box and the shop', () => {
+  for (const n of [1, 2, 3, 8]) { const a = party(n); a.toSeek(); assert.equal([...a.pa.round.items.values()].filter(i => i.type === 'gift').length, 0); }
+  const { pa, toSeek, hiders, adv } = party(2); toSeek(); const h = hiders()[0], b0 = h.prof.boxes; adv(pa.mc.seekMs + 10); assert.equal(h.prof.boxes, b0 + 1, 'the winner still gets a box');
 });
 test('a round ends if the seeker leaves or the last hider leaves; late joiners watch', () => {
   const a = party(3); a.toSeek(); const late = a.pa.add(prof('z'), { fake: 1 }); assert.equal(late.spec, true); a.pa.remove(a.seeker().id); assert.equal(a.pa.phase, 'results');
@@ -167,5 +167,28 @@ test('a new season wipes coins, boxes and items but keeps the name and face', ()
   const v = P.privateOf(p, Date.now()); assert.equal(v.coins, 300); assert.deepEqual(v.own, []); assert.equal(v.boxes, 1); assert.equal(p.look.outfit, 'tee'); assert.equal(p.look.hat, ''); assert.equal(p.name, name); assert.equal(p.look.skin, skin);
   p.coins = 500; P.privateOf(p, Date.now()); assert.equal(p.coins, 500, 'only once');
   for (const id of ['s2_seeker', 'bp_straw', 'bp_captain']) assert.ok(globalThis.FOUND_CATALOG.BY[id]); assert.ok(globalThis.FOUND_AVATAR_DATA.OUTC.s2_lava && globalThis.FOUND_AVATAR_DATA.HATV.bp_straw);
+});
+test('seeker hint: in the last 30% of the seek the seeker is told which objects are still hidden (host can turn it off)', () => {
+  const a = party(3); a.toSeek(); const R = a.pa.round, len = R.seekLen; assert.ok(len > 0);
+  a.adv(Math.round(len * 0.69)); assert.equal(a.pa.roundInfo().hint, null, 'no hint before 70%');
+  a.adv(Math.round(len * 0.02)); const h = a.pa.roundInfo().hint, names = a.hiders().map(p => globalThis.FOUND_OBJECTS.BY[p.prop].name);
+  assert.deepEqual([...h].sort(), [...new Set(names)].sort()); assert.ok(a.sent.some(([to, m]) => to === 'all' && m.t === 'hint'));
+  const b = party(3); b.pa.setRule(b.ps[0], 'hints', 0); b.toSeek(); b.adv(Math.round(b.pa.round.seekLen * 0.9)); assert.equal(b.pa.roundInfo().hint, null);
+});
+test('move bonus: a hider who changes spot (6 m, 15 s apart) earns 40, up to 6 times a round', () => {
+  const a = party(3); a.toSeek(); const h = a.hiders()[0], s0 = h.score;
+  h.x += 3; a.adv(CFG.moveEveryMs + 10); assert.equal(h.score, s0, '3 m is not a new spot');
+  h.x += 4; a.adv(200); assert.equal(h.score, s0 + CFG.moveBonus); assert.ok(a.sent.some(([to, m]) => to === h.id && m.t === 'bonus' && m.left === CFG.moveMax - 1));
+  h.x += 7; a.adv(200); assert.equal(h.score, s0 + CFG.moveBonus, 'not again within 15 s');
+  for (let i = 0; i < 7; i++) { h.x += (i % 2 ? -7 : 7); a.adv(CFG.moveEveryMs + 10); } assert.equal(a.pa.phase, "seek"); assert.equal(h.score, s0 + CFG.moveBonus * CFG.moveMax, 'capped');
+});
+test('standing on furniture: you can stand on a top below your feet, step onto low things, never onto walls', () => {
+  const L = globalThis.FOUND_LAYOUT, m = { colliders: [{ x0: 0, x1: 2, z0: 0, z1: 2, h: 1 }, { x0: 5, x1: 5.2, z0: -5, z1: 5, h: 9 }, { x0: -3, x1: -2, z0: 0, z1: 1, h: 0.3 }], bounds: { x0: -20, x1: 20, z0: -20, z1: 20 } };
+  assert.notDeepEqual(L.collide(m, 1, -0.2, 0.5, 1, -2, 0), [1, -0.2], 'blocked on the floor');
+  assert.deepEqual(L.collide(m, 1, -0.2, 0.5, 1, -2, 1.05), [1, -0.2], 'above the table it does not block');
+  assert.equal(L.groundAt(m, 1, 1, 1.4), 1); assert.equal(L.groundAt(m, 1, 1, 0), 0, 'too high to step onto from the floor'); assert.equal(L.groundAt(m, -2.5, 0.5, 0), 0.3, 'low things are a step');
+  assert.deepEqual(L.collide(m, -2.5, -0.3, 0.5, -2.5, -2, 0), [-2.5, -0.3], 'walk onto a low thing');
+  assert.notDeepEqual(L.collide(m, 5.1, 0, 0.5, 4, 0, 6), [5.1, 0], 'walls stop you at any height');
+  const house = L.map('house', 0), sofa = house.furniture.find(f => f.type === 'sofa'); assert.ok(L.T.sofa.h < 11 * 11 / 52, 'a jump clears a sofa');
 });
 console.log(`\n${n} unit tests passed`);

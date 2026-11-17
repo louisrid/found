@@ -51,8 +51,13 @@ Every round the map is rearranged from a seed the server picks: each room may be
 clutter (boxes, barrels, vases, speakers, rocks, a scarecrow and more) is scattered in new places, always clear of
 doors, spawns and other furniture. Server and browser build the map from the same seed, so they agree exactly.
 
-The map always holds 3 ordinary copies of every hider's object on floors in different rooms, plus other objects and
-a few Mystery Boxes anyone can pick up.
+The map always holds 3 ordinary copies of every hider's object on floors in different rooms, plus other objects.
+You can jump (Space) onto tables, beds, sofas and other low furniture, and hide on top.
+
+- **Seeker hint:** in the last 30% of the seek, the seeker is told which objects are still hidden (the host can turn
+  this off in Rules).
+- **Move bonus:** a hider who moves to a new spot (6 m from their last one, at least 15 s later) earns +40, up to 6 times
+  a round.
 
 | Players | Mode | Map (default) |
 |---|---|---|
@@ -89,7 +94,7 @@ up/down, camera distance, field of view and sound. Saved in that browser.
   computer hiders pays a quarter and gives no win box, so it can't out-earn playing with friends.
 - **Shop:** every outfit, hat, extra and pet has a fixed price by rarity: 300, 800, 2,000, 5,000 or 12,000.
 - **Mystery Box:** one kind, worth about 770 coins of shop value for 600, so it's a better deal than the shop but you don't pick the item. It gives a random item you don't own (60% common, 28% rare, 9% epic, 2.5% legendary,
-  0.5% mythic). You get one for winning a round, one free each day, any you pick up in the house, or for 600 coins.
+  0.5% mythic). You get one for winning a round, one free each day, or for 600 coins.
 - **Locker:** what you own, plus hair, skin and colour.
 
 - **Idle coins:** 30 an hour plus 2 for every item you own, for up to 8 hours away. Collect on the home screen.

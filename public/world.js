@@ -139,8 +139,6 @@
     g.add(pb.build());
     anim.push({ fn: (t, dt) => { if (W.map !== 'lobby') return; const me = W.me; plinthItems.forEach((q, i) => { q.m.rotation.y = q.ry + (W.reduced ? 0 : Math.sin(t * 0.8 + i) * 0.5);
       const near = me && Math.hypot(me.x - q.p.x, me.z - q.p.z) < 4; if (near && !q.lab) { q.lab = label(OBJ.BY[q.p.id].name, { w: 3.2, size: 44 }); q.lab.position.set(q.p.x, 3.1, q.p.z); g.add(q.lab); } if (q.lab) q.lab.visible = near; }); } });
-    /* a few decorative gifts by the spawn */
-    [[6.5, 11, 'box', 0.4], [7.8, 11.8, 'box', -0.3], [-7, 12, 'box', 0.2]].forEach(q => { const m = objModel('gift', q[2]); m.position.set(q[0], 0, q[1]); m.rotation.y = q[3]; g.add(m); });
   }
 
   /* ---------------- building the house ---------------- */
@@ -450,7 +448,7 @@
   W.tp = function (x, z, ry) { const m = W.me; if (!m) return; m.x = x; m.z = z; m.ry = ry == null ? m.ry : ry; yaw = m.ry; look = 0; cAz = yaw + Math.PI; m.y = 0; m.vy = 0; m.path = null; cT = null; if (marker) marker.visible = false; };
   W.fix = function (x, z) { const m = W.me; if (m) { m.x = x; m.z = z; } };
   W.emote = function (id, e) { const o = W.me && id === W.me.id ? W.me : W.others.get(id); if (o) o.g.userData.av.userData.emote(e); };
-  W.jump = function () { const m = W.me; if (m && m.grounded) { m.vy = 9.5; m.grounded = false; } };
+  W.jump = function () { const m = W.me; if (m && m.grounded && !W.frozen) { m.vy = 11; m.grounded = false; } };   /* about 2.3 high: onto tables, beds and sofas, not shelves or fridges */
 
   /* ---------------- the map ---------------- */
   /* show the lobby or a map. Each round's map has its own arrangement (the seed), built when first shown; the old one is thrown away. */
@@ -565,13 +563,16 @@
       const moving = sp > 0; walking = len > 0.08;
       if (moving) look *= Math.max(0, 1 - dt * 6);   /* start walking and the camera swings back behind you */
       if (moving) {
-        const nx = m.x + fx2 * sp * dt, nz = m.z + fz2 * sp * dt, c = LAY.collide(map, nx, nz, 0.6, m.x, m.z);
+        const nx = m.x + fx2 * sp * dt, nz = m.z + fz2 * sp * dt, c = LAY.collide(map, nx, nz, 0.6, m.x, m.z, m.y);
         m.x = c[0]; m.z = c[1];
         if (len <= 0.08) { const want = Math.atan2(fx2, fz2); m.ry += Math.atan2(Math.sin(want - m.ry), Math.cos(want - m.ry)) * Math.min(1, dt * 10); yaw = m.ry; }
       }
       if (len > 0.08 || !m.path) m.ry += Math.atan2(Math.sin(yaw - m.ry), Math.cos(yaw - m.ry)) * Math.min(1, dt * 16);
       m.moving = moving; m.running = moving && (K2.shift || sp > 9.6);
-      if (!m.grounded || m.vy) { m.vy -= 26 * dt; m.y += m.vy * dt; if (m.y <= 0) { m.y = 0; m.vy = 0; if (!m.grounded) { m.grounded = true; m.g.userData.av.userData.M.scale.set(2.2, 1.75, 2.2); } } }
+      /* standing on furniture: step up onto low things, fall when you walk off an edge, land on whatever is under you */
+      const gnd = map ? LAY.groundAt(map, m.x, m.z, m.y) : 0;
+      if (m.grounded && !m.vy) { if (gnd > m.y) m.y = gnd; else if (gnd < m.y - 0.02) { m.grounded = false; m.vy = 0; } }
+      if (!m.grounded || m.vy) { m.vy -= 26 * dt; m.y += m.vy * dt; if (m.y <= gnd) { m.y = gnd; m.vy = 0; if (!m.grounded) { m.grounded = true; m.g.userData.av.userData.M.scale.set(2.2, 1.75, 2.2); } } }
       const Ms = m.g.userData.av.userData.M.scale; Ms.x += (2 - Ms.x) * 0.2; Ms.y += (2 - Ms.y) * 0.2; Ms.z += (2 - Ms.z) * 0.2;
       m.g.position.set(m.x, m.y, m.z); m.g.rotation.y = m.ry; m.g.userData.tag.visible = W.map === 'lobby';
       m.g.userData.av.userData.anim(t, dt, { moving, running: m.running, speed: m.running ? 1.4 : 1.1, jumping: !m.grounded });
