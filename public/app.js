@@ -212,7 +212,7 @@
   let lastMv = '', lastMvAt = 0;
   setInterval(() => {
     const m = W.me; if (!m || !S.party) return;
-    const f = (m.moving ? 1 : 0) | (m.running ? 2 : 0) | (!m.grounded ? 4 : 0), key = [m.x.toFixed(2), m.z.toFixed(2), m.y.toFixed(1), m.ry.toFixed(2), f].join();
+    const f = (m.moving ? 1 : 0) | (m.running ? 2 : 0) | (!m.grounded ? 4 : 0) | (m.roll ? 8 : 0), key = [m.x.toFixed(2), m.z.toFixed(2), m.y.toFixed(1), m.ry.toFixed(2), f].join();
     if (key === lastMv && Date.now() - lastMvAt < 1000) return; lastMv = key; lastMvAt = Date.now();
     send({ t: 'mv', x: +m.x.toFixed(2), z: +m.z.toFixed(2), y: +m.y.toFixed(2), ry: +m.ry.toFixed(2), f });
   }, 80);
@@ -254,6 +254,7 @@
   }
   function layer(html, name) { if (S.stage) { S.stage.stop(); S.stage = null; } const L = $('#layer'); L.innerHTML = html; L.hidden = false; S.layer = name; W.keys = {}; }
   function closeLayer(name) { if (name && S.layer !== name) return; const L = $('#layer'); if (S.stage) { S.stage.stop(); S.stage = null; } L.hidden = true; L.innerHTML = ''; S.layer = null; }
+  W.onRoll = () => tone(260, 0.3, 'sine', 0.07, 720);
   W.blocked = () => !!S.layer && S.layer !== 'results' || !!S.reveal || !!S.crate;
 
   /* pick: hiders choose a disguise, the seeker waits */
@@ -489,7 +490,9 @@
   function touchControls(on) { const t = W.touch && on; $('#joy').hidden = !t; $('#jump').hidden = !t; }
   (function joystick() {
     const j = $('#joy'), k = j.querySelector('i'); let id = null, cx = 0, cy = 0;
-    const set = (x, y) => { const r = 46, d = Math.hypot(x, y), s = d > r ? r / d : 1; x *= s; y *= s; k.style.transform = `translate(${x}px,${y}px)`; W.joy.x = x / r; W.joy.y = y / r; if (W.me && (x || y)) W.me.path = null; };
+    let side = 0, sideAt = 0, sideTaps = 0;
+    const flick = x => { const sd = x > 30 ? 1 : x < -30 ? -1 : 0; if (sd !== side) { side = sd; if (sd) { const t = performance.now(); sideTaps = sd === (flick.last || 0) && t - sideAt < 320 ? sideTaps + 1 : 1; flick.last = sd; sideAt = t; if (sideTaps >= 2) { sideTaps = 0; W.roll(sd); } } } };
+    const set = (x, y) => { flick(x); const r = 46, d = Math.hypot(x, y), s = d > r ? r / d : 1; x *= s; y *= s; k.style.transform = `translate(${x}px,${y}px)`; W.joy.x = x / r; W.joy.y = y / r; if (W.me && (x || y)) W.me.path = null; };
     j.addEventListener('pointerdown', e => { id = e.pointerId; j.setPointerCapture(id); const b = j.getBoundingClientRect(); cx = b.left + b.width / 2; cy = b.top + b.height / 2; set(e.clientX - cx, e.clientY - cy); });
     j.addEventListener('pointermove', e => { if (e.pointerId === id) set(e.clientX - cx, e.clientY - cy); });
     const end = e => { if (e.pointerId !== id) return; id = null; set(0, 0); };

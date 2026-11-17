@@ -35,8 +35,9 @@ Run one instance only: parties live in memory.
 - Win rounds for coins and Mystery Boxes. Spend them in **Shop** and **Locker**.
 
 ## Guns and crates
+- **Double-tap A or D** to barrel roll sideways (dodges shots). On a phone, flick the joystick left or right twice.
 - Admin switches guns on in the lobby. Then **hold F**, hold the **FIRE** button or hold **right-click** to shoot; shots aim at whoever is in front of you. 100 HP, 150 coins per kill, back after 3 seconds.
 - Everyone earns **1,000 coins a minute** while connected. A **Gun Crate** costs 500 coins and always gives a gun you don't own (Common, Uncommon, Rare, Epic, Legendary, Mythic). 17 guns; the Locker and Shop have a **Guns** tab.
 
 ## Checking it works
-`npm test` runs 38 unit and 31 integration checks. `tests/browser.py` plays a full 1v1 in Chrome (README has details).
+`npm test` runs 39 unit and 31 integration checks. `tests/browser.py` plays a full 1v1 in Chrome (README has details).

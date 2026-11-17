@@ -238,4 +238,11 @@ test('guns: shooting, health, kills, respawn, and only when switched on in the l
   a.prof.gun = 'g_rail'; adv(1500); place(); b.hp = 100; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 86, 'a gun you do not own fires as the starter pistol (14)');
   pa.setGuns(false); assert.ok(!pa.state().guns);
 });
+test('a barrel roll dodges shots, lasts under half a second and cannot be spammed', () => {
+  const { pa, ps, adv, sent } = party(2), [a, b] = ps; pa.setGuns(true); a.x = 0; a.z = 0; b.x = 0; b.z = 9; a.prof.gun = 'g_pop';
+  pa.move(b, { x: 0, z: 9, y: 0, ry: 0, f: 9 }); assert.equal(b.f & 8, 8); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 100, 'a rolling player dodges');
+  adv(500); pa.move(b, { x: 0, z: 9, y: 0, ry: 0, f: 9 }); assert.equal(b.f & 8, 0, 'the roll flag runs out after 0.45 s'); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 86);
+  adv(400); pa.move(b, { x: 0, z: 9, y: 0, ry: 0, f: 1 }); adv(400); pa.move(b, { x: 0, z: 9, y: 0, ry: 0, f: 9 }); assert.equal(b.f & 8, 8, 'a new roll after the cooldown'); adv(100); pa.move(b, { x: 0, z: 9, y: 0, ry: 0, f: 1 });
+  adv(200); pa.move(b, { x: 0, z: 9, y: 0, ry: 0, f: 9 }); assert.equal(b.f & 8, 0, 'rolling again straight away is ignored');
+});
 console.log(`\n${n} unit tests passed`);

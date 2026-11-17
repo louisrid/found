@@ -198,7 +198,9 @@ export class Party {
     const map = this.inHouse() ? this.map() : LAY.lobby; y = Math.max(0, Math.min(6, y));
     /* checked in short steps so a fast move cannot pass through a thin wall */
     { const n = Math.max(1, Math.ceil(Math.hypot(x - p.x, z - p.z) / 0.5)); let cx = p.x, cz = p.z; for (let i = 1; i <= n; i++) { const r = LAY.collide(map, p.x + (x - p.x) * i / n, p.z + (z - p.z) * i / n, 0.55, cx, cz, y); if (i < n && (Math.abs(r[0] - (p.x + (x - p.x) * i / n)) > 1e-6 || Math.abs(r[1] - (p.z + (z - p.z) * i / n)) > 1e-6)) { cx = r[0]; cz = r[1]; break; } cx = r[0]; cz = r[1]; } x = cx; z = cz; }
-    p.x = x; p.z = z; p.y = Math.max(0, Math.min(6, y)); p.ry = ry; p.at = now; p.f = (b.f | 0) & 15; p.moved = true;
+    p.x = x; p.z = z; p.y = Math.max(0, Math.min(6, y)); p.ry = ry; p.at = now; /* barrel roll: the client says it is rolling; the server allows one roll (0.45 s, dodging shots) per 0.8 s */
+    if ((b.f | 0) & 8) { if (!p.rolling && now - (p.rollStart || 0) >= 800) { p.rollStart = now; p.rolling = true; } if (p.rolling && now - p.rollStart > 450) p.rolling = false; } else p.rolling = false;
+    p.f = ((b.f | 0) & 7) | (p.rolling ? 8 : 0); p.moved = true;
     if (fixed) this.io.one(p, { t: 'fix', x: r2(x), z: r2(z) });
   }
   /* ---------- guns: the admin switches them on in the lobby; everyone there can shoot ---------- */
@@ -215,7 +217,7 @@ export class Party {
       const a = ry + (g.pellets > 1 ? (k / (g.pellets - 1) - 0.5) * g.spread * 2 : 0) + (this.rnd() - 0.5) * (g.pellets > 1 ? g.spread * 0.4 : g.spread), sx = Math.sin(a), sz = Math.cos(a);
       let best = null, bd = g.range;
       for (const q of this.players.values()) {
-        if (q === p || q.spec || q.deadAt || now < q.shield) continue;
+        if (q === p || q.spec || q.deadAt || now < q.shield || (q.rolling && now - q.rollStart <= 450)) continue;   // a roll dodges
         const dx = q.x - p.x, dz = q.z - p.z, fwd = dx * sx + dz * sz, side = Math.abs(dx * sz - dz * sx);
         if (fwd > 0.3 && fwd <= bd && side <= 1.6 + fwd * 0.04) { best = q; bd = fwd; }
       }

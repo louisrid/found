@@ -529,6 +529,12 @@
   W.fix = function (x, z) { const m = W.me; if (m) { m.x = x; m.z = z; } };
   W.emote = function (id, e) { const o = W.me && id === W.me.id ? W.me : W.others.get(id); if (o) o.g.userData.av.userData.emote(e); };
   /* one jump reaches about 2.3 (tables, beds, sofas); a second jump in the air reaches shelves and counters */
+  const ROLL_MS = 380, ROLL_SP = 58;
+  /* dir: +1 rolls to your right, -1 to your left. Lobby and Explore only (never in a round) */
+  W.roll = function (dir) {
+    const m = W.me, t = performance.now(); if (!m || m.roll || W.frozen || W.blocked() || (m.info && m.info.asProp) || !(W.map === 'lobby' || W.mode === 'roam') || t < (m.rollCd || 0)) return false;
+    m.roll = { t0: t, dir, vx: -Math.cos(yaw) * dir, vz: Math.sin(yaw) * dir }; m.rollCd = t + 900; m.path = null; burst(m.x, 0.3, m.z, '#ffffff', 6, 4, 380); if (W.onRoll) W.onRoll(); return true;
+  };
   W.jump = function () { const m = W.me; if (!m || W.frozen) return; if (m.grounded) { m.vy = 11; m.grounded = false; m.dj = false; } else if (!m.dj) { m.vy = 10; m.dj = true; } };
   /* a restless hider's object hops every couple of seconds */
   const twitch = (t, seed) => { const ph = (t + seed * 0.37) % 2.2; return ph < 0.32 ? Math.sin(ph / 0.32 * Math.PI) * 0.55 : 0; };
@@ -595,7 +601,9 @@
   function bindInput() {
     addEventListener('keydown', e => { if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return; const k = e.key.toLowerCase(); if (W.blocked()) return;
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'q', 'e', ' ', 'shift'].includes(k)) { W.keys[k] = true; if (k.startsWith('arrow') || k === ' ') e.preventDefault(); if (W.me && 'wasd'.includes(k)) W.me.path = null; }
-      if (k === ' ' && !e.repeat) W.jump(); });
+      if (k === ' ' && !e.repeat) W.jump();
+      /* tap A or D twice quickly: barrel roll */
+      if ((k === 'a' || k === 'd') && !e.repeat) { const t = performance.now(); if (W.lastTap && W.lastTap.k === k && t - W.lastTap.t < 300) { W.lastTap = null; W.roll(k === 'd' ? 1 : -1); } else W.lastTap = { k, t }; } });
     addEventListener('keyup', e => { W.keys[e.key.toLowerCase()] = false; });
     addEventListener('blur', () => { W.keys = {}; });
     let drag = null;
@@ -643,10 +651,14 @@
         if (d < 0.35) { m.path.shift(); m.best = 1e9; if (!m.path.length) { m.path = null; if (marker) marker.visible = false; } } else { fx2 = dx / d; fz2 = dz / d; sp = Math.min(W.role === 'hider' ? 32 : 38, d / Math.max(dt, 1e-3));
           /* stuck? no progress toward the next corner for a while: plan again from here, once */
           if (d < (m.best || 1e9) - 0.05) { m.best = d; m.stuckT = 0; } else if ((m.stuckT = (m.stuckT || 0) + dt) > 0.9) { const goal = m.path[m.path.length - 1]; m.stuckT = 0; m.best = 1e9; const again = (m.replanned || 0) < 3 && findPath(W.mapObj, m.x, m.z, goal[0], goal[1]); m.replanned = (m.replanned || 0) + 1; m.path = again && again.length ? again : null; if (!m.path && marker) marker.visible = false; } } }
+      /* barrel roll: a quick dash sideways while the whole body tumbles over */
+      if (m.roll) { const r = m.roll, k = (now - r.t0) / ROLL_MS, av = m.g.userData.av;
+        if (k >= 1) { m.roll = null; av.rotation.z = 0; av.position.set(0, 0, 0); }
+        else { fx2 = r.vx; fz2 = r.vz; sp = ROLL_SP * (1.2 - k * 0.6); len = 1; m.path = null; const th = r.dir * k * Math.PI * 2; av.rotation.z = th; av.position.set(2 * Math.sin(th), 2 - 2 * Math.cos(th), 0); } }
       const moving = sp > 0; walking = len > 0.08;
       if (moving) look *= Math.max(0, 1 - dt * 6);   /* start walking and the camera swings back behind you */
       if (moving) {
-        if (!m.grounded) sp *= 0.45;   /* slower in the air, so you can land on things at this speed */
+        if (!m.grounded && !m.roll) sp *= 0.45;   /* slower in the air, so you can land on things at this speed */
         const step = sp * dt, n = Math.max(1, Math.ceil(step / 0.4));
         for (let i = 0; i < n; i++) { const c = LAY.collide(map, m.x + fx2 * step / n, m.z + fz2 * step / n, 0.6, m.x, m.z, m.y); m.x = c[0]; m.z = c[1]; }
         if (len <= 0.08) { const want = Math.atan2(fx2, fz2); m.ry += Math.atan2(Math.sin(want - m.ry), Math.cos(want - m.ry)) * Math.min(1, dt * 10); yaw = m.ry; }
@@ -683,6 +695,8 @@
       W.canTag = !!tagCand();   /* no ring on the ground: the TAG button lights up when something is in reach */
     }
     W.others.forEach(o => { const k = Math.min(1, dt * 18); o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; o.z += (o.tz - o.z) * k; let d = o.try - o.ry; d = Math.atan2(Math.sin(d), Math.cos(d)); o.ry += d * k; if (now - o.lastAt > 350) o.moving = false;
+      { const av = o.g.userData.av; if (av && av.rotation && !o.info.asProp) { if (o.f & 8) { if (!o.rollK) { o.rollK = 0.0001; const rx = -Math.cos(o.ry), rz = Math.sin(o.ry); o.rollDir = ((o.tx - o.x) * rx + (o.tz - o.z) * rz) >= 0 ? 1 : -1; } o.rollK = Math.min(1, o.rollK + dt * 1000 / ROLL_MS); const th = o.rollDir * o.rollK * Math.PI * 2; av.rotation.z = th; av.position.set(2 * Math.sin(th), 2 - 2 * Math.cos(th), 0); }
+        else if (o.rollK) { o.rollK = 0; av.rotation.z = 0; av.position.set(0, 0, 0); } } }
       o.g.visible = !(W.blind && o.info.asProp) && !o.info.ghost; o.g.position.set(o.x, o.y + ((o.f & 32) ? twitch(t, o.x) : 0), o.z); o.g.rotation.y = o.ry; o.g.userData.av.userData.anim(t, dt, { moving: o.moving, running: !!(o.f & 2), speed: 2.4, aim: !!o.info.gun, jumping: !!(o.f & 4) }); if (o.g.userData.pet) petFollow(o.g, o, t, dt, o.moving); });
     W.items.forEach(it => { if (it.gift) { it.m.rotation.y += dt * 1.2; it.m.position.y = it.y + 0.15 + Math.sin(t * 2.5 + it.x) * 0.12; }
       if (it.wig > 0) { it.wig -= dt; it.m.rotation.z = Math.sin(it.wig * 40) * 0.25 * (it.wig / 0.45); if (it.wig <= 0) it.m.rotation.z = 0; }
