@@ -40,4 +40,4 @@ Run one instance only: parties live in memory.
 - Everyone earns **1,000 coins a minute** while connected. A **Gun Crate** costs 500 coins and always gives a gun you don't own (Common, Uncommon, Rare, Epic, Legendary, Mythic). 17 guns; the Locker and Shop have a **Guns** tab.
 
 ## Checking it works
-`npm test` runs 39 unit and 31 integration checks. `tests/browser.py` plays a full 1v1 in Chrome (README has details).
+`npm test` runs 40 unit and 31 integration checks. `tests/browser.py` plays a full 1v1 in Chrome (README has details).

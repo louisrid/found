@@ -1,4 +1,4 @@
-/* FOUND cosmetics: every outfit, hat, extra and pet from BITZ (current and legacy catalogues), each with a rarity.
+/* FOUND cosmetics: every outfit, hat, extra, pet, aura and gun, each with a rarity (starter, common, uncommon, rare, epic, legendary, mythic, celestial, cosmic).
    Shared by the server (rewards) and the browser (locker, gift reveals). Row: [id, slot, name, rarity]. */
 (function (root) {
   'use strict';
@@ -96,6 +96,24 @@
     ["x_reactor","outfit","Reactor Warden","legendary"],
     ["x_prism","outfit","Prism Titan","mythic"],
     ["zombie","outfit","Zombie","epic"],
+    /* Update 3: new outfits and full costumes */
+    ["o_mint","outfit","Mint fresh","common"],
+    ["o_sunset","outfit","Sunset","common"],
+    ["o_ocean","outfit","Ocean","common"],
+    ["o_candy","outfit","Candy","uncommon"],
+    ["o_toxic","outfit","Toxic","uncommon"],
+    ["o_sakura","outfit","Sakura","uncommon"],
+    ["o_midnight","outfit","Midnight","rare"],
+    ["o_chrome","outfit","Chrome","epic"],
+    ["o_neonpunk","outfit","Neon punk","epic"],
+    ["c_robo","outfit","Robo head","epic"],
+    ["o_lavaflow","outfit","Lava flow","legendary"],
+    ["o_aurora","outfit","Aurora suit","legendary"],
+    ["c_phoenix","outfit","Phoenix costume","legendary"],
+    ["o_gilded","outfit","Gilded","mythic"],
+    ["c_galaxy","outfit","Starry costume","mythic"],
+    ["c_archangel","outfit","Archangel","celestial"],
+    ["c_cosmic","outfit","Cosmic being","cosmic"],
     /* hat */
     ["beanie","hat","Beanie","starter"],
     ["cap","hat","Baseball cap","starter"],
@@ -132,6 +150,19 @@
     ["bp_tricorn","hat","Captain's tricorn","legendary"],
     ["bp_bandana","hat","Sea bandana","epic"],
     ["bp_plume","hat","Plumed explorer hat","legendary"],
+    /* Update 3: new hats */
+    ["h_headset","hat","Neon headset","uncommon"],
+    ["h_devil","hat","Imp horns","uncommon"],
+    ["h_antenna","hat","Bug antennae","uncommon"],
+    ["h_cloud","hat","Storm cloud","rare"],
+    ["h_horn","hat","Rainbow horn","rare"],
+    ["h_orbitring","hat","Orbit ring","epic"],
+    ["h_neonhalo","hat","Neon halo","epic"],
+    ["h_crystal","hat","Crystal crown","legendary"],
+    ["h_flame","hat","Torch hat","legendary"],
+    ["h_galaxyhelm","hat","Galaxy helm","mythic"],
+    ["h_sunrays","hat","Sun crown","celestial"],
+    ["h_cosmos","hat","Cosmos crown","cosmic"],
     /* acc */
     ["glasses","acc","Glasses","starter"],
     ["scarf","acc","Scarf","common"],
@@ -157,6 +188,19 @@
     ["fireaura","acc","Ring of fire","legendary"],
     ["bp_eyepatch","acc","Eyepatch","epic"],
     ["bp_cutlass","acc","Cutlass","legendary"],
+    /* Update 3: new extras */
+    ["a_tailfox","acc","Fluffy tail","common"],
+    ["a_shadesneon","acc","Neon shades","uncommon"],
+    ["a_lantern","acc","Lantern","uncommon"],
+    ["a_batwings","acc","Bat wings","rare"],
+    ["a_tailrainbow","acc","Rainbow tail","rare"],
+    ["a_jetpack","acc","Flame pack","epic"],
+    ["a_angelwings","acc","Angel wings","epic"],
+    ["a_gems","acc","Orbiting gems","legendary"],
+    ["a_firewings","acc","Fire wings","legendary"],
+    ["a_galaxycape","acc","Galaxy cape","mythic"],
+    ["a_goldwings","acc","Golden wings","celestial"],
+    ["a_cosmicwings","acc","Prism wings","cosmic"],
     /* pet */
     ["bird","pet","Bluebird","rare"],
     ["pig","pet","Tiny pig","rare"],
@@ -184,6 +228,14 @@
     ["w_crystaldeer","pet","Crystal deer","mythic"],
     ["w_rainbowfox","pet","Rainbow fox","mythic"],
     ["w_goldpig","pet","Golden pig","mythic"],
+    /* Update 3: new pets */
+    ["p_slime","pet","Jelly blob","uncommon"],
+    ["p_wisp","pet","Wisp","rare"],
+    ["p_robobee","pet","Robo bee","rare"],
+    ["p_starfox","pet","Star fox","legendary"],
+    ["p_dragonling","pet","Dragonling","mythic"],
+    ["p_nebula","pet","Nebula whale","celestial"],
+    ["p_hole","pet","Black hole buddy","cosmic"],
     /* guns (stats and models in guns.js) */
     ["g_pop","gun","Pop Pistol","starter"],
     ["g_pea","gun","Pea Shooter","common"],
@@ -202,17 +254,42 @@
     ["g_galaxy","gun","Galaxy Cannon","legendary"],
     ["g_duck","gun","Rubber Duck Doomsday","mythic"],
     ["g_cosmic","gun","Cosmic Chaos Cannon","mythic"],
+    ["g_water","gun","Water Pistol","common"],
+    ["g_confetti","gun","Confetti Cannon","uncommon"],
+    ["g_sonic","gun","Sonic Boom Box","rare"],
+    ["g_thunder","gun","Thunder Cannon","epic"],
+    ["g_kraken","gun","Kraken Launcher","legendary"],
+    ["g_unicorn","gun","Unicorn Blaster","mythic"],
+    ["g_halo","gun","Halo Rifle","celestial"],
+    ["g_sunburst","gun","Sunburst Cannon","celestial"],
+    ["g_blackhole","gun","Singularity Gun","cosmic"],
+    ["g_bigbang","gun","Big Bang Blaster","cosmic"],
+    /* auras: glowing effects that follow you (definitions in auras.js) */
+    ["au_glow","aura","Soft glow","common"],
+    ["au_mint","aura","Mint ring","common"],
+    ["au_bubbles","aura","Bubbles","uncommon"],
+    ["au_hearts","aura","Hearts","uncommon"],
+    ["au_embers","aura","Embers","rare"],
+    ["au_frost","aura","Frost","rare"],
+    ["au_toxic","aura","Toxic cloud","rare"],
+    ["au_storm","aura","Storm","epic"],
+    ["au_neon","aura","Neon pulse","epic"],
+    ["au_inferno","aura","Inferno","legendary"],
+    ["au_aurora","aura","Aurora","legendary"],
+    ["au_void","aura","Void","mythic"],
+    ["au_angelic","aura","Angelic","celestial"],
+    ["au_galaxy","aura","Galaxy","cosmic"],
   ];
-  const RARITY = ['starter', 'common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
-  const RCOL = { starter: '#0b0b0f', common: '#6b6b76', uncommon: '#1fa34a', rare: '#2f5bff', epic: '#7a3cff', legendary: '#ff8a00', mythic: '#ff2d55' };
-  const RNAME = { starter: 'Starter', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', mythic: 'Mythic' };
+  const RARITY = ['starter', 'common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'celestial', 'cosmic'];
+  const RCOL = { starter: '#0b0b0f', common: '#6b6b76', uncommon: '#1fa34a', rare: '#2f5bff', epic: '#7a3cff', legendary: '#ff8a00', mythic: '#ff2d55', celestial: '#00c9b7', cosmic: '#c13cff' };
+  const RNAME = { starter: 'Starter', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', mythic: 'Mythic', celestial: 'Celestial', cosmic: 'Cosmic' };
   const BY = {}; ITEMS.forEach(r => { BY[r[0]] = { id: r[0], slot: r[1], name: r[2], rarity: r[3] }; });
   const STARTER = ITEMS.filter(r => r[3] === 'starter').map(r => r[0]);
   /* the shop: one fixed price per rarity */
-  const PRICE = { starter: 0, common: 300, uncommon: 500, rare: 800, epic: 2000, legendary: 5000, mythic: 12000 };
+  const PRICE = { starter: 0, common: 300, uncommon: 500, rare: 800, epic: 2000, legendary: 5000, mythic: 12000, celestial: 30000, cosmic: 80000 };
   /* the mystery box: one kind, one price, a random item you don't own (odds in percent) */
-  const BOX = { name: 'Mystery Box', price: 600, odds: { common: 60, rare: 28, epic: 9, legendary: 2.5, mythic: 0.5 } };
-  /* the gun crate: 500 coins for a random gun you don't own (odds in percent). Players earn 1,000 coins a minute, so a crate is half a minute away */
-  const CRATE = { name: 'Gun Crate', price: 500, odds: { common: 36, uncommon: 28, rare: 20, epic: 10, legendary: 4.5, mythic: 1.5 } };
+  const BOX = { name: 'Mystery Box', price: 600, odds: { common: 46, uncommon: 20, rare: 18, epic: 10, legendary: 4, mythic: 1.5, celestial: 0.4, cosmic: 0.1 } };
+  /* the gun crate: 500 coins for a random gun (odds in percent; a gun you own pays `dup` of its shop price back). Players earn 1,000 coins a minute, so a crate is half a minute away */
+  const CRATE = { name: 'Gun Crate', price: 500, odds: { common: 30, uncommon: 26, rare: 20, epic: 12, legendary: 7, mythic: 3, celestial: 1.5, cosmic: 0.5 }, dup: 0.1 };
   root.FOUND_CATALOG = Object.freeze({ ITEMS, BY, RARITY, RCOL, RNAME, STARTER, PRICE, BOX, CRATE });
 })(globalThis);

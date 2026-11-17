@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import * as P from '../src/profiles.js';
 const OBJm = id => globalThis.FOUND_OBJECTS.TIERS[globalThis.FOUND_OBJECTS.BY[id].tier].mult;
 import { Party, newCode, CFG, MAPCFG, modeFor, mapFor } from '../src/game.js';
-const C = globalThis.FOUND_CATALOG, OBJ = globalThis.FOUND_OBJECTS, LAY = globalThis.FOUND_LAYOUT, D = globalThis.FOUND_AVATAR_DATA;
+import { analyse } from './curve.mjs';
+const G0 = globalThis.FOUND_GUNS, C = globalThis.FOUND_CATALOG, OBJ = globalThis.FOUND_OBJECTS, LAY = globalThis.FOUND_LAYOUT, D = globalThis.FOUND_AVATAR_DATA;
 let n = 0; const test = (name, fn) => { fn(); n++; console.log('  ok', name); };
 const seeded = s => () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 const prof = (ch, r) => P.newProfile(String(ch).repeat(20), 'k'.repeat(48), 0, r);
@@ -23,8 +24,16 @@ test('every cosmetic renders from the merged avatar data', () => {
     if (slot === 'hat') assert.ok(D.HATV[id] || ['beanie', 'cap', 'party', 'cowboy', 'wizard', 'headband', 'chefhat', 'pirate', 'halo', 'crown'].includes(id), id);
     if (slot === 'acc') assert.ok(D.ACCV[id] || ['glasses', 'scarf', 'cape', 'wings', 'phoenix'].includes(id), id);
     if (slot === 'pet') assert.ok(D.PETV[id] || ['pig', 'penguin', 'dragon', 'bird'].includes(id), id);
+    if (slot === 'aura') assert.ok(globalThis.FOUND_AURAS.BY[id], id);
   }
-  assert.ok(C.ITEMS.length >= 150);
+  assert.ok(C.ITEMS.length >= 250);
+  for (const a of globalThis.FOUND_AURAS.LIST) { assert.equal(C.BY[a.id].slot, 'aura'); assert.equal(C.BY[a.id].rarity, a.rarity, a.id); assert.ok(a.parts.length >= 1); }
+  /* every new hat, extra, outfit, costume and pet has at least one voxel and valid flags */
+  const flags = new Set([undefined, 'g', 'G', 'o', 'b', 'w', 'f', 'p', 't', 's', 'n']), okSpec = (id, spec) => { assert.ok(Array.isArray(spec) && spec.length, id); for (const q of spec) { assert.ok(q.length >= 7 && q.slice(0, 3).every(v => v > 0) && q.slice(4, 7).every(Number.isFinite), id + ' ' + JSON.stringify(q)); assert.ok(flags.has(q[7]), id + ' flag ' + q[7]); } };
+  for (const id in D.HATV) okSpec(id, D.HATV[id]); for (const id in D.PETV) okSpec(id, D.PETV[id]); for (const id in D.ACCV) okSpec(id, [].concat(D.ACCV[id].h || [], D.ACCV[id].b || [])); for (const id in D.FULLV) { okSpec(id, D.FULLV[id].h || [{}].slice(1).concat([[1, 1, 1, '#fff', 0, 0, 0]])); }
+  for (const r of C.RARITY) assert.ok(C.RCOL[r] && C.RNAME[r] && C.PRICE[r] >= 0, r);
+  assert.deepEqual(C.RARITY.slice(-2), ['celestial', 'cosmic']); assert.ok(C.PRICE.cosmic > C.PRICE.celestial && C.PRICE.celestial > C.PRICE.mythic);
+  for (const r of ['celestial', 'cosmic']) for (const slot of ['outfit', 'hat', 'acc', 'pet', 'aura', 'gun']) assert.ok(C.ITEMS.some(i => i[1] === slot && i[3] === r), r + ' ' + slot);
 });
 test('box odds add up to 100 and every rarity has a price', () => { assert.equal(Object.values(C.BOX.odds).reduce((a, b) => a + b, 0), 100); for (const r of C.RARITY) assert.ok(C.PRICE[r] >= 0); });
 test('27 props, nine per size', () => { assert.equal(OBJ.LIST.length, 27); for (const t of ['easy', 'medium', 'hard']) assert.equal(OBJ.ofTier(t).length, 9); });
@@ -204,18 +213,40 @@ test('every gun has a shop row, stats and a model', () => {
   const G = globalThis.FOUND_GUNS; assert.equal(G.LIST.length, C.ITEMS.filter(i => i[1] === 'gun').length); assert.ok(C.STARTER.includes(G.START));
   for (const g of G.LIST) { assert.equal(C.BY[g.id].slot, 'gun'); assert.equal(C.BY[g.id].rarity, g.rarity); assert.ok(g.spec.length >= 6 && g.dmg > 0 && g.ms >= 50 && g.range > 10 && g.mz > 0.2, g.id); }
   const rank = r => C.RARITY.indexOf(r), dps = g => g.dmg * g.pellets * 1000 / g.ms, byR = {}; for (const g of G.LIST) byR[g.rarity] = Math.max(byR[g.rarity] || 0, dps(g));
-  assert.ok(byR.mythic > byR.epic && byR.epic > byR.uncommon && byR.legendary > byR.rare, 'rarer guns are stronger');
-  for (const r of ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic']) assert.ok(C.CRATE.odds[r] > 0 && C.PRICE[r] > 0); assert.equal(Object.values(C.CRATE.odds).reduce((a, b) => a + b, 0), 100);
+  for (let i = 2; i < C.RARITY.length; i++) assert.ok(byR[C.RARITY[i]] > byR[C.RARITY[i - 1]], 'rarer guns are stronger: ' + C.RARITY[i]);
+  for (const r of C.RARITY.filter(r => r !== 'starter')) assert.ok(C.CRATE.odds[r] > 0 && C.PRICE[r] > 0, r); assert.equal(Object.values(C.CRATE.odds).reduce((a, b) => a + b, 0), 100);
 });
-test('the gun crate gives a new gun every time, equips better ones, and stops at all of them', () => {
-  const p = prof('g'), rr = seeded(5), guns = C.ITEMS.filter(i => i[1] === 'gun' && i[3] !== 'starter'); p.coins = C.CRATE.price * guns.length; const seen = new Set();
+test('the gun crate rolls by its odds, gives guns you lack, refunds a tenth of the shop price for duplicates, and stops at all of them', () => {
+  const p = prof('g'), rr = seeded(5), guns = C.ITEMS.filter(i => i[1] === 'gun' && i[3] !== 'starter'); p.coins = 1e7; const seen = new Set(); let dups = 0, crates = 0;
   assert.equal(P.privateOf(p, 0).gun, 'g_pop');
-  for (let i = 0; i < guns.length; i++) { const r = P.openCrate(p, rr); assert.ok(!seen.has(r.item) && r.slot === 'gun'); seen.add(r.item); assert.ok(P.owns(p, r.item)); }
-  assert.equal(p.coins, 0); assert.equal(seen.size, guns.length); assert.throws(() => P.openCrate(p), /own every gun|Not enough/); p.coins = 9999; assert.throws(() => P.openCrate(p), /own every gun/); assert.equal(p.coins, 9999);
-  assert.ok(['legendary', 'mythic'].includes(C.BY[p.gun].rarity));
+  while (seen.size < guns.length && crates < 5000) { const before = p.coins, had = P.owns(p, 'x'), r = P.openCrate(p, rr); crates++; assert.equal(r.slot, 'gun');
+    if (r.dup) { dups++; assert.ok(seen.has(r.item), 'a duplicate is a gun you own'); assert.equal(r.coins, Math.round(C.PRICE[r.rarity] * C.CRATE.dup)); assert.equal(p.coins, before - C.CRATE.price + r.coins); assert.ok(!r.equipped); }
+    else { assert.ok(!seen.has(r.item), 'a new gun is new'); seen.add(r.item); assert.ok(P.owns(p, r.item)); assert.equal(p.coins, before - C.CRATE.price); assert.equal(r.left, guns.length - seen.size); } }
+  assert.equal(seen.size, guns.length, 'every gun can be won'); assert.ok(dups > 0 && crates < 5000); assert.throws(() => P.openCrate(p), /own every gun/); const c0 = p.coins; assert.throws(() => P.openCrate(p), /own every gun/); assert.equal(p.coins, c0);
+  assert.equal(C.BY[p.gun].rarity, 'cosmic', 'the best gun you won ends up in your hand');
   const q = prof('h'); q.coins = 100; assert.throws(() => P.openCrate(q), /Not enough/); assert.equal(q.coins, 100);
   const o = prof('i'); P.equip(o, { gun: 'g_cosmic' }); assert.equal(o.gun, undefined); o.own.push('g_cosmic'); P.equip(o, { gun: 'g_cosmic' }); assert.equal(o.gun, 'g_cosmic'); assert.equal(P.publicOf(o).gun, 'g_cosmic');
   const m = prof('j'); m.boxes = 200; for (let i = 0; i < 200; i++) { const r = P.openBox(m); assert.ok(!r.item || r.slot !== 'gun'); }
+  /* the odds really are the odds: 20,000 rolls into a fresh player each time land within a point or so of them */
+  const hit = {}; for (let i = 0; i < 20000; i++) { const z = prof('z'); z.coins = 500; const r = P.openCrate(z, rr); hit[r.rarity] = (hit[r.rarity] || 0) + 1; }
+  for (const r in C.CRATE.odds) assert.ok(Math.abs(hit[r] / 200 - C.CRATE.odds[r]) < Math.max(0.35, C.CRATE.odds[r] * 0.35), r + ' rolled ' + hit[r] / 200 + '% not ' + C.CRATE.odds[r] + '%');
+});
+test('the power curve: each rarity hits harder and kills faster, and takes longer to earn', () => {
+  const R = analyse(60), T = R.tiers, rank = Object.fromEntries(C.RARITY.map((r, i) => [r, i]));
+  assert.deepEqual(T.map(t => t.rarity), C.RARITY.filter(r => G0.LIST.some(g => g.rarity === r)));
+  for (let i = 1; i < T.length; i++) { const a = T[i - 1], b = T[i];
+    assert.ok(b.min > a.avg, `${b.rarity}'s weakest gun (${b.min}) beats the average ${a.rarity} gun (${a.avg})`); assert.ok(b.max > a.max, `${b.rarity} tops ${a.rarity}`);
+    assert.ok(b.avg / a.avg >= 1.08 && b.avg / a.avg <= 1.7, `${a.rarity} to ${b.rarity} is a ${(b.avg / a.avg).toFixed(2)}x step`); assert.ok(b.ttkMax <= a.ttkMax, `${b.rarity} kills no slower than ${a.rarity}`); }
+  assert.ok(T[0].ttkMin >= 2 && T[T.length - 1].ttkMax === 0, 'a starter pistol needs 2 s+, a cosmic gun kills in one shot');
+  assert.ok(T.at(-1).avg / T[0].avg >= 6 && T.at(-1).avg / T[0].avg <= 12, 'cosmic is roughly 6 to 12 times a starter');
+  /* earning them */
+  const med = Object.fromEntries(R.pace.map(x => [x.rarity, x.median])); let prev = 0; for (const x of R.pace) { assert.ok(x.median >= prev, x.rarity + ' not sooner than the tier below'); prev = x.median; }
+  assert.ok(med.common <= 2 && med.rare <= 4 && med.legendary <= 10, 'the early tiers come quickly'); assert.ok(med.cosmic >= 20 && med.cosmic <= 120, 'a cosmic gun is a long chase: ' + med.cosmic + ' min');
+  assert.ok(R.complete.median >= 60 && R.complete.median <= 240, 'all the guns take hours, not minutes: ' + R.complete.median);
+  /* the crate never prints money: even a player who already owns everything but one gun loses coins on average */
+  const ev = C.RARITY.filter(r => C.CRATE.odds[r]).reduce((s, r) => s + C.CRATE.odds[r] / 100 * C.PRICE[r] * C.CRATE.dup, 0); assert.ok(ev < C.CRATE.price * 0.6, 'refund value per crate ' + ev.toFixed(0));
+  assert.equal(Object.values(C.BOX.odds).reduce((a, b) => a + b, 0), 100); assert.equal(Object.values(C.CRATE.odds).reduce((a, b) => a + b, 0), 100);
+  for (let i = 2; i < C.RARITY.length; i++) assert.ok(C.PRICE[C.RARITY[i]] > C.PRICE[C.RARITY[i - 1]], 'prices climb');
 });
 test('everyone connected earns 1,000 coins a minute', () => {
   const { pa, ps, adv } = party(3, null, { payCoins: 100 }); const c0 = ps.map(p => p.prof.coins);
@@ -234,7 +265,7 @@ test('guns: shooting, health, kills, respawn, and only when switched on in the l
   const coins = a.prof.coins; let n = 0; while (!b.deadAt && n++ < 20) { adv(400); pa.shoot(a, { ry: 0 }); } assert.ok(b.deadAt && b.hp === 0); assert.equal(a.prof.coins, coins + CFG.killCoins); assert.ok(sent.some(m => m[1].t === 'kill' && m[1].id === b.id));
   const bx = b.x; pa.move(b, { x: 5, z: 5, y: 0, ry: 0 }); assert.equal(b.x, bx); adv(400); pa.shoot(b, { ry: 0 }); assert.ok(a.hp === 100);
   adv(CFG.respawnMs + 50); assert.ok(!b.deadAt && b.hp === 100 && b.shield > 0); assert.ok(sent.some(m => m[1].t === 'spawned' && m[1].id === b.id));
-  place(); b.shield = 0; a.prof.gun = 'g_cosmic'; a.prof.own.push('g_cosmic'); adv(400); pa.shoot(a, { ry: 0 }); assert.ok(b.hp < 100 && b.hp >= 100 - 16 * 3);
+  place(); b.shield = 0; a.prof.gun = 'g_cosmic'; a.prof.own.push('g_cosmic'); adv(400); pa.shoot(a, { ry: 0 }); { const g = G0.BY.g_cosmic; assert.ok(b.hp < 100 && b.hp >= 100 - g.dmg * g.pellets, 'a spread gun lands some or all pellets: ' + b.hp); }
   a.prof.gun = 'g_rail'; adv(1500); place(); b.hp = 100; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 86, 'a gun you do not own fires as the starter pistol (14)');
   pa.setGuns(false); assert.ok(!pa.state().guns);
 });

@@ -412,10 +412,26 @@
   const GUNS = globalThis.FOUND_GUNS;
   /* a gun: its plain boxes, plus the rainbow ones on a material of their own whose colour cycles */
   function gunModel(id) {
-    const d = GUNS.BY[id] || GUNS.BY[GUNS.START], plain = d.spec.filter(q => q[7] !== 'r'), rain = d.spec.filter(q => q[7] === 'r').map(q => [q[0], q[1], q[2], '#ffffff', q[4], q[5], q[6]]);
+    const d = GUNS.BY[id] || GUNS.BY[GUNS.START], F = q => q[7], LIVE = { r: 1, s: 1, o: 1, f: 1 };
+    const plain = d.spec.filter(q => !LIVE[F(q)]), rain = d.spec.filter(q => F(q) === 'r').map(q => [q[0], q[1], q[2], '#ffffff', q[4], q[5], q[6]]);
     const g = new THREE.Group(); g.add(specGroup(plain, 1, 0.02)); let rb = null;
     if (rain.length) { rb = specGroup(rain, 1, 0.02); if (rb.userData.body) rb.userData.body.material = VC.clone(); g.add(rb); }
-    g.userData = { d, mz: d.mz, tick(t) { if (rb && rb.userData.body) rb.userData.body.material.color.setHSL((t * 0.6) % 1, 0.9, 0.62); } };
+    /* 's': parts that spin round the barrel (small ones glow); 'o': little cubes orbiting it; 'f': glowing parts that flicker */
+    const AX = 0.05, spinSpec = d.spec.filter(q => F(q) === 's').map(q => [q[0], q[1], q[2], q[3], q[4], q[5] - AX, q[6], Math.max(q[0], q[1], q[2]) <= 0.12 ? 'g' : undefined]);
+    let sg = null; if (spinSpec.length) { sg = new THREE.Group(); sg.position.y = AX; sg.add(specGroup(spinSpec, 1, 0.02)); g.add(sg); }
+    const mk = (q, tr) => { const m = new THREE.Mesh(fxGeo(), new THREE.MeshBasicMaterial({ color: q[3], transparent: !!tr })); m.scale.set(q[0], q[1], q[2]); g.add(m); return m; };
+    const orb = d.spec.filter(q => F(q) === 'o').map((q, i) => { const dy = q[5] - AX; return { m: mk(q), z: q[6], r: Math.hypot(q[4], dy) || 0.2, a0: Math.atan2(dy, q[4]), w: 2.6 + (i % 3) * 0.7 }; });
+    const flk = d.spec.filter(q => F(q) === 'f').map((q, i) => { const m = mk(q, true); m.position.set(q[4], q[5], q[6]); return { m, s: [q[0], q[1], q[2]], ph: i * 1.7 }; });
+    let rev = 0, ang = 0, last = null;
+    g.userData = { d, mz: d.mz, rev() { rev = 1; },
+      tick(t) {
+        const dt = last == null ? 0 : Math.max(0, Math.min(0.1, t - last)); last = t; rev = Math.max(0, rev - dt * 2.2);
+        if (rb && rb.userData.body) rb.userData.body.material.color.setHSL((t * 0.6) % 1, 0.9, 0.62);
+        if (sg) { ang += dt * (3 + rev * 16); sg.rotation.z = ang; }
+        for (const o of orb) { const a = o.a0 + t * o.w; o.m.position.set(Math.cos(a) * o.r, AX + Math.sin(a) * o.r, o.z + Math.sin(t * 3 + o.a0) * 0.05); o.m.rotation.set(t * 3, t * 2, 0); }
+        for (const f of flk) { const k = 0.82 + 0.18 * Math.sin(t * 19 + f.ph) + 0.1 * Math.sin(t * 7.3 + f.ph); f.m.scale.set(f.s[0] * k, f.s[1] * k, f.s[2]); f.m.material.opacity = 0.55 + 0.4 * Math.sin(t * 23 + f.ph) * 0.5 + 0.25 + rev * 0.2; }
+      } };
+    g.userData.tick(0);
     return g;
   }
   W.gunModel = gunModel;
@@ -464,7 +480,7 @@
     if (o !== W.me) { o.try = m.ry; o.ry = m.ry; }
     if (av && av.userData) av.userData.recoil = 0.5 + (d.dmg >= 50 ? 0.4 : 0);
     const from = new THREE.Vector3(), gm = av && av.userData.gun;
-    if (gm) { gm.updateWorldMatrix(true, false); gm.localToWorld(from.set(0, 0.05, d.mz)); } else from.set(o.x + Math.sin(m.ry) * 1.4, o.y + 2.3, o.z + Math.cos(m.ry) * 1.4);
+    if (gm) { gm.userData.rev(); gm.updateWorldMatrix(true, false); gm.localToWorld(from.set(0, 0.05, d.mz)); } else from.set(o.x + Math.sin(m.ry) * 1.4, o.y + 2.3, o.z + Math.cos(m.ry) * 1.4);
     const t = performance.now() / 300; flare(from, d.dmg >= 50 ? 0.9 : 0.5, d.col === 'rainbow' ? '#ffffff' : d.col);
     m.e.forEach((r, i) => { const end = new THREE.Vector3(r[0], o.y + 2.3, r[1]); beam(from, end, d, t + i * 0.31); if (r[2]) burst(r[0], o.y + 2.3, r[1], d.col === 'rainbow' ? '#ff7ad9' : d.col, 5, 5, 420); });
   };
@@ -784,9 +800,9 @@
     return shoot('c:' + id, () => {
       if (slot === 'gun') { const w = new THREE.Group(), m = gunModel(id); m.userData.tick(0.4); m.rotation.y = 1.15; w.add(m); return w; }
       if (slot === 'pet') { const p = AV.pet(THREE, id); p.userData.anim(0, false, false); return p; }
-      const look = { skin: 0, hair: slot === 'hat' ? 'none' : 'short', hc: 0, outfit: slot === 'outfit' ? id : 'tee', hat: slot === 'hat' ? id : '', acc: slot === 'acc' ? id : '' };
-      const g = AV.make(THREE, look, '#2f7bff', slot === 'outfit' ? 'fig' : slot); g.userData.anim(0, 0.016, {}); g.rotation.y = slot === 'acc' ? 2.6 : 0.35; return g;
-    }, slot === 'outfit' ? 0.95 : 1);
+      const look = { skin: 0, hair: slot === 'hat' ? 'none' : 'short', hc: 0, outfit: slot === 'outfit' ? id : 'tee', hat: slot === 'hat' ? id : '', acc: slot === 'acc' ? id : '', aura: slot === 'aura' ? id : '' };
+      const g = AV.make(THREE, look, '#2f7bff', slot === 'outfit' || slot === 'aura' ? 'fig' : slot); g.userData.anim(slot === 'aura' ? 1.7 : 0, 0.016, {}); g.rotation.y = slot === 'acc' ? 2.6 : 0.35; return g;
+    }, slot === 'outfit' ? 0.95 : slot === 'aura' ? 0.8 : 1);
   };
   /* a live stage in a modal: one figure or a gift box, turning */
   W.stage = function (cv) {
@@ -807,7 +823,7 @@
         m.scale.setScalar(1.7); g.add(m); g.userData.baseRy = 0.45; g.userData.tick = t => { m.position.y = Math.sin(t * 2) * 0.12; }; set(g, { y: 3.2, d: 10, ty: 1.4 }); return g; },
       item(id, slot) { if (slot === 'gun') { const g = new THREE.Group(), m = gunModel(id); m.scale.setScalar(3.4); m.position.z = -1.4; g.add(m); g.userData.baseRy = 1.2; g.userData.tick = t => m.userData.tick(t); set(g, { y: 2.2, d: 8, ty: 0.4 }); return; }
         if (slot === 'pet') { const p = AV.pet(THREE, id); p.scale.setScalar(1.6); p.userData.pet = true; const g = new THREE.Group(); g.add(p); g.userData.anim = t => p.userData.anim(t, false, false); g.userData.pet = true; set(g, { y: 1.8, d: 6, ty: 0.9 }); return; }
-        const look = { skin: 0, hair: slot === 'hat' ? 'none' : 'short', hc: 0, outfit: slot === 'outfit' ? id : 'tee', hat: slot === 'hat' ? id : '', acc: slot === 'acc' ? id : '' };
+        const look = { skin: 0, hair: slot === 'hat' ? 'none' : 'short', hc: 0, outfit: slot === 'outfit' ? id : 'tee', hat: slot === 'hat' ? id : '', acc: slot === 'acc' ? id : '', aura: slot === 'aura' ? id : '' };
         const a = AV.make(THREE, look, '#2f7bff'); const g = new THREE.Group(); g.add(a); g.userData.anim = (t, dt) => a.userData.anim(t, dt, {}); set(g, { y: 2.3, d: 9.2, ty: 1.9 }); },
       gift(kind) { const g = objModel('gift', kind); g.scale.setScalar(2.2); g.userData.baseRy = 0.5; set(g, { y: 2.2, d: 7.5, ty: 1.0 }); return g; },
       shake(k) { if (!obj) return; obj.position.x = Math.sin(performance.now() / 30) * 0.08 * k; obj.rotation.z = Math.sin(performance.now() / 40) * 0.1 * k; },

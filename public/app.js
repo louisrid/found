@@ -280,8 +280,9 @@
   }
 
   /* ---------------- locker (what you own) and shop (what you can buy) ---------------- */
-  const SLOTS = [['outfit', 'Outfits'], ['hat', 'Hats'], ['acc', 'Extras'], ['pet', 'Pets'], ['gun', 'Guns']], LOOKS = [['look', 'Hair & skin'], ['col', 'Colour']];
-  const RANK = { starter: 0, common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5, mythic: 6 };
+  const SLOTS = [['outfit', 'Outfits'], ['hat', 'Hats'], ['acc', 'Extras'], ['pet', 'Pets'], ['aura', 'Auras'], ['gun', 'Guns']], LOOKS = [['look', 'Hair & skin'], ['col', 'Colour']];
+  const RANK = {}; C.RARITY.forEach((r, i) => { RANK[r] = i; });
+  const rcol = r => r === 'starter' ? '#8a8a99' : C.RCOL[r];
   const gunFor = () => wTab === 'gun' ? S.me.gun || GUNS.START : '';
   let wTab = 'outfit', wMode = 'locker';
   const owned = id => C.STARTER.includes(id) || S.me.own.includes(id);
@@ -307,10 +308,10 @@
       let list = C.ITEMS.filter(r => r[1] === wTab).map(r => C.BY[r[0]]).filter(i => shop ? !owned(i.id) : owned(i.id)).sort((a, b) => RANK[a.rarity] - RANK[b.rarity]);
       const cur = wTab === 'pet' ? me.pet : wTab === 'gun' ? me.gun : me.look[wTab];
       const none = !shop && wTab !== 'outfit' && wTab !== 'gun' ? `<div class="it${!cur ? ' on' : ''}" data-a="wear" data-v=""><i class="none"></i><b>None</b></div>` : '';
-      const tile = i => `<div style="background:${pastel(C.RCOL[i.rarity])}" class="it${(shop ? S.sel === i.id : cur === i.id) ? ' on' : ''}" data-a="${shop ? 'pick' : 'wear'}" data-v="${i.id}"><img data-icon="${i.id}" data-slot="${i.slot}" alt=""><b>${esc(i.name)}</b>${shop ? `<span class="p">${fmt(C.PRICE[i.rarity])}</span>` : ''}</div>`;
-      const crate = shop && wTab === 'gun' ? `<div class="boxbar"><img data-icon="g_cosmic" data-slot="gun" alt=""><div><b>Gun Crate</b><span>A random gun you don't own. Coins come in at 1,000 a minute.</span></div><div class="boxbtns"><button class="btn black" data-a="crate"${me.coins >= C.CRATE.price ? '' : ' disabled'}>Open ${fmt(C.CRATE.price)}</button></div></div>` : '';
+      const tile = i => `<div style="--rc:${rcol(i.rarity)}" class="it r-${i.rarity}${(shop ? S.sel === i.id : cur === i.id) ? ' on' : ''}" data-a="${shop ? 'pick' : 'wear'}" data-v="${i.id}"><i class="rt">${C.RNAME[i.rarity]}</i><img data-icon="${i.id}" data-slot="${i.slot}" alt=""><b>${esc(i.name)}</b>${shop ? `<span class="p">${fmt(C.PRICE[i.rarity])}</span>` : ''}</div>`;
+      const crate = shop && wTab === 'gun' ? `<div class="boxbar"><img data-icon="g_cosmic" data-slot="gun" alt=""><div><b>Gun Crate</b><span>Win a gun, rarest ones last. Duplicates pay coins back. Coins come in at 1,000 a minute.</span></div><div class="boxbtns"><button class="btn black" data-a="crate"${me.coins >= C.CRATE.price ? '' : ' disabled'}>Open ${fmt(C.CRATE.price)}</button></div></div>` : '';
       const box = shop && wTab !== 'gun' ? `<div class="boxbar"><img src="${W.giftIcon('box')}" alt=""><div><b>Mystery Box${me.boxes ? ' ×' + me.boxes : ''}</b><span>A random item you don't own.</span></div><div class="boxbtns">${me.daily ? '<button class="btn black" data-a="daily">Free today</button>' : ''}${me.boxes ? '<button class="btn black" data-a="open">Open</button>' : ''}<button class="btn" data-a="buybox"${me.coins >= C.BOX.price ? '' : ' disabled'}>Buy ${fmt(C.BOX.price)}</button></div></div>` : '';
-      const legend = shop ? `<div class="legend">${['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'].map(r => `<span style="background:${C.RCOL[r]}">${C.RNAME[r]} ${fmt(C.PRICE[r])}</span>`).join('')}</div><p class="earn-line">Get coins by playing rounds, collecting idle coins, the daily spin and Odd one out.</p>` : '';
+      const legend = shop ? `<div class="legend">${C.RARITY.filter(r => r !== 'starter').map(r => `<span class="r-${r}" style="--rc:${C.RCOL[r]}">${C.RNAME[r]} ${fmt(C.PRICE[r])}</span>`).join('')}</div><p class="earn-line">Get coins by playing rounds, collecting idle coins, the daily spin and Odd one out.</p>` : '';
       inner = crate + box + legend + (list.length || none ? `<div class="grid">${none}${list.map(tile).join('')}</div>` : `<p class="big">${shop ? 'You own all of these.' : 'Nothing here yet. Visit the shop.'}</p>`);
     }
     body.innerHTML = tabs + inner; paintBuy();
@@ -345,7 +346,7 @@
     $('#rv-c').addEventListener('pointerdown', () => { if (phase !== 'idle') return; phase = 'shaking'; t0 = performance.now(); $('#rv-sub').textContent = 'Opening…'; send({ t: 'open' }); });
     const show = () => {
       st.calm(); SFX.win(); const r = res;
-      if (r.item) { st.item(r.item, r.slot); el.querySelector('.top').innerHTML = `<h2>${esc(r.name)}</h2><p style="color:${C.RCOL[r.rarity]}">${C.RNAME[r.rarity]} ${r.slot === 'acc' ? 'extra' : r.slot}</p>`; }
+      if (r.item) { st.item(r.item, r.slot); el.querySelector('.top').innerHTML = `<h2>${esc(r.name)}</h2><p style="color:${C.RCOL[r.rarity]}">${C.RNAME[r.rarity]} ${r.slot === 'acc' ? 'extra' : r.slot}</p>`; el.dataset.rar = r.rarity; if (RANK[r.rarity] >= RANK.legendary) [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'triangle', 0.1), i * 90)); }
       else { st.clear(); el.querySelector('.top').innerHTML = `<h2>+${fmt(r.coins)} coins</h2><p>You already own everything.</p>`; }
       $('#rv-b').innerHTML = (r.item ? '<button class="btn black big" data-rv="wear">Wear it</button>' : '') + (S.me.boxes ? '<button class="btn big" data-rv="again">Open another</button>' : '') + '<button class="btn big" data-rv="done">Done</button>';
     };
@@ -383,7 +384,7 @@
   addEventListener('blur', () => { S.fireHeld = false; });
 
   /* ---------------- the gun crate: shake, a spinning strip of guns, then the card ---------------- */
-  const RFX = { common: { rays: 0, parts: 10, shake: 0, flash: 0.0 }, uncommon: { rays: 0, parts: 18, shake: 0, flash: 0.25 }, rare: { rays: 1, parts: 26, shake: 0.4, flash: 0.45 }, epic: { rays: 1, parts: 40, shake: 0.8, flash: 0.7 }, legendary: { rays: 2, parts: 60, shake: 1.2, flash: 0.9 }, mythic: { rays: 3, parts: 90, shake: 1.8, flash: 1 } };
+  const RFX = { common: { rays: 0, parts: 10, shake: 0, flash: 0.0 }, uncommon: { rays: 0, parts: 18, shake: 0, flash: 0.25 }, rare: { rays: 1, parts: 26, shake: 0.4, flash: 0.45 }, epic: { rays: 1, parts: 40, shake: 0.8, flash: 0.7 }, legendary: { rays: 2, parts: 60, shake: 1.2, flash: 0.9 }, mythic: { rays: 3, parts: 90, shake: 1.8, flash: 1 }, celestial: { rays: 4, parts: 130, shake: 2.4, flash: 1 }, cosmic: { rays: 5, parts: 190, shake: 3, flash: 1 } };
   function crateReveal() {
     if (S.crate) return; if (S.me.coins < C.CRATE.price) { toast(`A Gun Crate costs ${fmt(C.CRATE.price)} coins. You earn 1,000 a minute.`); SFX.nope(); return; }
     const back = S.layer; closeLayer();
@@ -403,7 +404,7 @@
       st.calm(); flash('#fff', 0.9); SFX.pop(); $('#cr-c').style.visibility = 'hidden'; const strip = $('#cr-strip'), track = $('#cr-track'); strip.hidden = false; $('#cr-sub').textContent = '';
       const W0 = Math.min(150, Math.max(104, innerWidth / 5)), N = 44, WIN = 36, cells = [];
       for (let i = 0; i < N; i++) { let id; if (i === WIN) id = res.item; else { const r = Math.random() * 100; let acc = 0, rar = 'common'; for (const k of order) { acc += C.CRATE.odds[k]; if (r < acc) { rar = k; break; } } const list = pool.filter(q => q[3] === rar); id = list[Math.floor(Math.random() * list.length)][0]; } cells.push(id); }
-      track.innerHTML = cells.map(id => `<div class="cr-c" style="width:${W0}px;--rc:${C.RCOL[C.BY[id].rarity]};background:${pastel(C.RCOL[C.BY[id].rarity])}"><img data-icon="${id}" alt=""><b>${esc(C.BY[id].name)}</b></div>`).join('');
+      track.innerHTML = cells.map(id => `<div class="cr-c r-${C.BY[id].rarity}" style="width:${W0}px;--rc:${C.RCOL[C.BY[id].rarity]}"><img data-icon="${id}" alt=""><b>${esc(C.BY[id].name)}</b></div>`).join('');
       $$('#cr-track img').forEach(im => { im.src = W.itemIcon(im.dataset.icon, 'gun'); });
       const stripW = strip.clientWidth, jitter = (Math.random() - 0.5) * W0 * 0.6, target = WIN * W0 + W0 / 2 + jitter - stripW / 2, T = 4600, s0 = performance.now(); let lastI = -1;
       const ease = x => 1 - Math.pow(1 - x, 4);
@@ -412,17 +413,17 @@
     }
     function land() {
       phase = 'shown'; const r = res, fx = RFX[r.rarity], col = C.RCOL[r.rarity], d = GUNS.BY[r.item];
-      $$('#cr-track .cr-c')[36].classList.add('win'); SFX.win(); if (r.rarity === 'legendary' || r.rarity === 'mythic') [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'triangle', 0.1), i * 90));
+      $$('#cr-track .cr-c')[36].classList.add('win'); SFX.win(); if (RANK[r.rarity] >= RANK.legendary) [523, 659, 784, 1047, 1319].concat(RANK[r.rarity] >= RANK.celestial ? [1568, 2093, 2637] : []).forEach((f, i) => setTimeout(() => tone(f, 0.3, 'triangle', 0.1), i * 90));
       setTimeout(() => {
-        flash(r.rarity === 'mythic' ? '#fff' : col, fx.flash); if (fx.shake) { el.style.setProperty('--sh', fx.shake); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+        flash(RANK[r.rarity] >= RANK.mythic ? '#fff' : col, fx.flash); if (fx.shake) { el.style.setProperty('--sh', fx.shake); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
         const dps = Math.round(d.dmg * d.pellets * 1000 / d.ms), bar = (v, mx) => `<i><u style="width:${Math.min(100, v / mx * 100)}%"></u></i>`;
         const card = $('#cr-card'); card.hidden = false; card.className = `cr-card show r-${r.rarity}`; card.style.setProperty('--rc', col);
         card.innerHTML = `${fx.rays ? `<div class="rays r${fx.rays}"></div>` : ''}<div class="face"><span class="rar">${C.RNAME[r.rarity]}</span><img src="${W.itemIcon(r.item, 'gun')}" alt=""><h3>${esc(r.name)}</h3>
           <div class="stats"><div><span>Damage</span>${bar(d.dmg * d.pellets, 90)}<b>${d.dmg}${d.pellets > 1 ? '×' + d.pellets : ''}</b></div><div><span>Speed</span>${bar(1000 / d.ms, 15)}<b>${(1000 / d.ms).toFixed(1)}/s</b></div><div><span>Range</span>${bar(d.range, 90)}<b>${d.range}</b></div></div>
-          <p class="dps">${dps} damage a second${r.equipped ? ' · equipped!' : ''}</p></div>`;
+          <p class="dps">${dps} damage a second${r.equipped ? ' · equipped!' : ''}</p>${r.dup ? `<p class="dup">Duplicate · +${fmt(r.coins)} coins back</p>` : ''}</div>`;
         const parts = document.createElement('div'); parts.className = 'parts'; card.appendChild(parts);
-        for (let i = 0; i < fx.parts; i++) { const p = document.createElement('i'), a = Math.random() * 6.283, dist = 120 + Math.random() * (160 + fx.parts * 2); p.style.cssText = `--x:${Math.cos(a) * dist}px;--y:${Math.sin(a) * dist - 40}px;--d:${Math.random() * 0.25}s;--s:${6 + Math.random() * 10}px;background:${r.rarity === 'mythic' ? `hsl(${Math.random() * 360},95%,60%)` : Math.random() < 0.3 ? '#fff' : col}`; parts.appendChild(p); }
-        $('#cr-b').innerHTML = `${r.equipped ? '' : '<button class="btn black big" data-cr="equip">Equip</button>'}<button class="btn big" data-cr="again"${S.me.coins >= C.CRATE.price && r.left ? '' : ' disabled'}>Another ${fmt(C.CRATE.price)}</button><button class="btn big" data-cr="done">Done</button><span class="pill coin coins"></span>`; paintMe();
+        for (let i = 0; i < fx.parts; i++) { const p = document.createElement('i'), a = Math.random() * 6.283, dist = 120 + Math.random() * (160 + fx.parts * 2); p.style.cssText = `--x:${Math.cos(a) * dist}px;--y:${Math.sin(a) * dist - 40}px;--d:${Math.random() * 0.25}s;--s:${6 + Math.random() * 10}px;background:${r.rarity === 'mythic' || r.rarity === 'cosmic' ? `hsl(${Math.random() * 360},95%,60%)` : r.rarity === 'celestial' ? ['#fff', '#fff2a8', col][i % 3] : Math.random() < 0.3 ? '#fff' : col}`; parts.appendChild(p); }
+        $('#cr-b').innerHTML = `${r.equipped || r.dup ? '' : '<button class="btn black big" data-cr="equip">Equip</button>'}<button class="btn big" data-cr="again"${S.me.coins >= C.CRATE.price && r.left ? '' : ' disabled'}>Another ${fmt(C.CRATE.price)}</button><button class="btn big" data-cr="done">Done</button><span class="pill coin coins"></span>`; paintMe();
       }, 450);
     }
     const finish = () => { st.stop(); el.remove(); S.crate = null; if (back === 'shop' || back === 'locker') showWardrobe(back); paintGun(); };
