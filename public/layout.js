@@ -430,7 +430,7 @@
     return m;
   };
   root.FOUND_LAYOUT = {
-    maps: MAP_IDS, map, info: id => ({ id, name: DEFS[id].name, size: DEFS[id].size }),
+    maps: MAP_IDS, map, info: id => ({ id, name: DEFS[id].name, size: DEFS[id].size, center: DEFS[id].center || [0, 0] }),
     get lobby() { return Lb || (Lb = buildLobby()); },
     get house() { return map('mansion'); },
     collide, near, rot, T, sound

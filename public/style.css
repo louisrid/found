@@ -386,3 +386,24 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 .hud .timer { font-size: 24px; padding: 6px 14px; } .hud .timer small { font-size: 10px; }
 .btn.tag-btn { font-size: 20px; padding: 13px 26px; border-radius: 16px; }
 @media (max-width: 760px) { .btn.tag-btn { font-size: 18px; padding: 12px 20px; } }
+/* v7: single player and walking on the home screen */
+.home-card { position: relative; }
+.home-min { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; padding: 0; font-size: 22px; border-width: 4px !important; box-shadow: 3px 3px 0 var(--ink) !important; }
+.home.folded .home-card { display: none; }
+.menu-open { position: fixed; z-index: 6; left: calc(16px + var(--safe-l, 0px)); top: calc(16px + var(--safe-t)); font-size: 18px; padding: 10px 18px; border: 4px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: var(--accent, #2f5bff); color: #fff; }
+.home-tools.solo .btn { line-height: 1.1; }
+.home-tools.solo .btn small { display: block; font: 11px var(--body); font-weight: 800; text-transform: none; letter-spacing: 0; margin-top: 3px; }
+.home-tools.solo [data-a=practice] { background: var(--mint, #6dffb0); }
+.home-tools.solo [data-a=explore] { background: #fff; }
+.roam { position: fixed; z-index: 6; left: 16px; top: calc(16px + var(--safe-t)); display: flex; gap: 10px; align-items: center; }
+.roam-chip { display: flex; gap: 8px; align-items: center; background: var(--paper); border: 4px solid var(--ink); border-radius: 16px; padding: 6px 8px 6px 14px; box-shadow: 4px 4px 0 var(--ink); }
+.roam-chip b { font: 18px var(--display); text-transform: uppercase; margin-right: 4px; }
+
+/* the home card never runs off a short screen; tips stay clear of the TAG button */
+.home-card { max-height: calc(100dvh - 32px); overflow-y: auto; scrollbar-width: none; }
+.home-card .logo { max-width: 220px; }
+@media (max-height: 760px) { .home { padding-top: 16px; padding-bottom: 16px; } .home-card { gap: 10px; padding: 20px; } .home-card .logo { max-width: 180px; } .home-card .tag { font-size: 14px !important; } .home-card .btn.big { padding-top: 12px; padding-bottom: 12px; } }
+.home-tools.earn .btn small, .home-tools.solo .btn small { white-space: normal; }
+.home-tools.earn .btn small { font-size: 10px; }
+.hud.in-round .lobby-bar { right: 190px; left: 16px; }
+@media (max-width: 760px) { .hud.in-round .lobby-bar { right: 12px; left: 12px; } }

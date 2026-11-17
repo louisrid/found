@@ -517,7 +517,7 @@
     canvas.addEventListener('pointerdown', e => { if (W.blocked()) return; canvas.setPointerCapture(e.pointerId); drag = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false }; });
     canvas.addEventListener('pointermove', e => { if (!drag || drag.id !== e.pointerId) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
       if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) drag.moved = true; if (drag.moved) { cAz -= dx * 0.006; cEl = Math.max(0.12, Math.min(1.2, cEl + dy * 0.004)); userHold = performance.now() + 2500; } });
-    canvas.addEventListener('pointerup', e => { if (!drag || drag.id !== e.pointerId) return; const d = drag; drag = null; if (!d.moved && performance.now() - d.t < 400 && W.mode === 'play') tapTo(e.clientX, e.clientY); });
+    canvas.addEventListener('pointerup', e => { if (!drag || drag.id !== e.pointerId) return; const d = drag; drag = null; if (!d.moved && performance.now() - d.t < 400) tapTo(e.clientX, e.clientY); });
     canvas.addEventListener('wheel', e => { e.preventDefault(); W.zoom = Math.max(0.6, Math.min(1.7, W.zoom * (1 + Math.sign(e.deltaY) * 0.08))); }, { passive: false });
     let pinch = null; canvas.addEventListener('touchmove', e => { if (e.touches.length === 2) { const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); if (pinch) W.zoom = Math.max(0.6, Math.min(1.7, W.zoom * pinch / d)); pinch = d; drag = null; } }, { passive: true });
     canvas.addEventListener('touchend', () => { pinch = null; });
@@ -548,7 +548,7 @@
     const m = W.me, locked = W.blocked(), K2 = W.keys, map = W.mapObj;
     if (m) {
       let ix = 0, iz = 0;
-      if (!locked && W.mode === 'play' && !W.frozen) { if (K2.w) iz -= 1; if (K2.s) iz += 1; if (K2.a) ix -= 1; if (K2.d) ix += 1; ix += W.joy.x; iz += W.joy.y; }
+      if (!locked && W.mode !== 'off' && !W.frozen && !W.typing) { if (K2.w) iz -= 1; if (K2.s) iz += 1; if (K2.a) ix -= 1; if (K2.d) ix += 1; ix += W.joy.x; iz += W.joy.y; }
       /* arrows turn the camera and tilt it; WASD walks */
       if (!locked) { const turn = (K2.arrowleft ? 1 : 0) - (K2.arrowright ? 1 : 0), tilt = (K2.arrowup ? 1 : 0) - (K2.arrowdown ? 1 : 0); if (turn) { cAz += dt * 2.2 * turn; userHold = now + 2500; } if (tilt) { cEl = Math.max(0.12, Math.min(1.2, cEl + dt * 0.9 * tilt)); userHold = now + 2500; } }
       let len = Math.hypot(ix, iz); if (len > 1) { ix /= len; iz /= len; len = 1; }
@@ -575,17 +575,16 @@
       /* walk up to a gift box and it's yours */
       if (W.map !== 'lobby' && !W.frozen && !W.dead) W.items.forEach(it => { if (it.gift && Math.hypot(it.x - m.x, it.z - m.z) < 2.8 && now > it.pend) { it.pend = now + 1500; if (W.onGrab) W.onGrab(it.id); } });
       /* camera: just behind you, and it follows as you turn. Backing straight up doesn't spin it; turning it yourself holds it for a moment */
-      if (W.mode === 'play' && moving && now > userHold) { const behind = m.ry + Math.PI, d = Math.atan2(Math.sin(behind - cAz), Math.cos(behind - cAz)), backing = len > 0.08 && iz > 0.3 && Math.abs(ix) < 0.5; if (!backing) cAz += d * Math.min(1, dt * (Math.abs(d) > 2 ? 1.4 : 3.2)); }
-      const prop = !!m.info.asProp, base = W.mode === 'home' ? 15 : prop ? 7.5 : 10.5, dist = base * W.zoom, ty = (prop ? 1.6 : 3.6) + m.y * 0.5, v = tmpV().set(m.x, ty, m.z);
+      if (moving && now > userHold) { const behind = m.ry + Math.PI, d = Math.atan2(Math.sin(behind - cAz), Math.cos(behind - cAz)), backing = len > 0.08 && iz > 0.3 && Math.abs(ix) < 0.5; if (!backing) cAz += d * Math.min(1, dt * (Math.abs(d) > 2 ? 1.4 : 3.2)); }
+      const prop = !!m.info.asProp, base = prop ? 7.5 : 10.5, dist = base * W.zoom, ty = (prop ? 1.6 : 3.6) + m.y * 0.5, v = tmpV().set(m.x, ty, m.z);
       /* a caught hider watches the seeker */
       if (W.dead) for (const o of W.others.values()) if (o.info && o.info.role === 'seeker') { v.set(o.x, 3.6, o.z); break; }
-      if (W.mode === 'home') cAz += dt * 0.12;
-      if (!cT) cT = v.clone(); cT.lerp(v, W.mode === 'home' ? 0.08 : 0.16);
-      const el = W.mode === 'home' ? 0.42 : cEl;
+      if (!cT) cT = v.clone(); cT.lerp(v, 0.16);
+      const el = cEl;
       cam.position.set(cT.x + Math.sin(cAz) * Math.cos(el) * dist, cT.y + Math.sin(el) * dist, cT.z + Math.cos(cAz) * Math.cos(el) * dist);
       /* walls are 2.4 high: keep the camera above them so it never ends up inside one */
-      if (W.mode === 'play' && W.map !== 'lobby' && cam.position.y < 3.4) cam.position.y = 3.4;
-      const hf = W.mode === 'home' ? W.homeFrame : { side: 0, up: 0 };
+      if (W.map !== 'lobby' && cam.position.y < 3.4) cam.position.y = 3.4;
+      const hf = W.mode === 'home' && !W.menuHidden ? W.homeFrame : { side: 0, up: 0 };
       cam.lookAt(cT.x + Math.cos(cAz) * hf.side, cT.y + hf.up, cT.z - Math.sin(cAz) * hf.side);
       sun.position.set(m.x + 22, 46, m.z + 26); sun.target.position.set(m.x, 0, m.z); sun.target.updateMatrixWorld();
       /* trees and parasols near you fade so nothing hides under them */

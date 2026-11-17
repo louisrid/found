@@ -18,6 +18,7 @@
 <!-- home: name, create or join a party, shop and locker -->
 <section id="home" class="home" hidden>
   <div class="card home-card">
+    <button class="btn icon home-min" data-a="menu" title="Hide menu and walk around" aria-label="Hide menu">&#x2013;</button>
     <img class="logo" src="logo.svg?v=__V__" alt="FOUND">
     <p class="tag">Hide as an object. Don't get found.</p>
     <label class="field"><span>Your name</span><input id="name" maxlength="14" autocomplete="off" spellcheck="false"></label>
@@ -25,6 +26,10 @@
     <div class="join-row">
       <input id="code" class="code-in" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Party code">
       <button class="btn big" data-a="join">Join</button>
+    </div>
+    <div class="home-tools solo">
+      <button class="btn big" data-a="practice">Practice<small>Seek 3 hiders, alone</small></button>
+      <button class="btn big" data-a="explore">Explore<small>Walk the maps</small></button>
     </div>
     <div class="home-tools">
       <button class="btn big" data-a="shop">Shop<i class="badge shop-badge" hidden></i></button>
@@ -38,6 +43,15 @@
     <div class="home-foot"><span class="pill coin coins"></span></div>
   </div>
 </section>
+
+<!-- the home menu folded away: walk the plaza; tap to bring the menu back -->
+<button id="menu-open" class="btn menu-open" data-a="menu" hidden>Menu</button>
+
+<!-- explore: walk any map alone, no party -->
+<div id="roam" class="roam" hidden>
+  <button class="btn icon" data-a="roamexit" title="Back" aria-label="Back">&#x2715;</button>
+  <div class="roam-chip"><b id="roam-name">House</b><button class="btn sm" data-a="roamnext">Next map</button><button class="btn sm" data-a="roamshuffle">Rearrange</button></div>
+</div>
 
 <!-- in a party. Lobby-only pieces carry .lobby-only and vanish during a round. -->
 <section id="hud" class="hud" hidden>

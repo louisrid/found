@@ -27,6 +27,7 @@ Profiles save to `data/found.json`. Delete that file to reset everyone.
 Run one instance only: parties live in memory.
 
 ## Playing
+- Alone: walk around the home screen straight away, or press **Practice** (seek 3 computer hiders) or **Explore** (walk any map).
 - Host sets **Map**, **Rules** and (1v1) **Stake** in the lobby. WASD to move, E to tag, Space to jump.
 - Hiders pick an object and stay still among the copies. Seekers tag. A wrong tag costs time.
 - Home screen: collect idle coins, spin the daily wheel, play Odd one out. Lobby: gift coins to friends.

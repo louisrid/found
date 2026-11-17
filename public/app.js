@@ -47,6 +47,7 @@
       if (m.now) S.skew = m.now - Date.now();
       const was = S.party, prev = S.phase; S.party = m; S.phase = m.phase; keepCode(m.code);
       if (!was || was.code !== m.code) enterParty();
+      if (S.practice && m.phase === 'lobby' && m.players.length === 1) { S.practice = false; send({ t: 'start' }); }
       for (const p of m.players) W.upsert(deco(p));
       W.keep(m.players.map(p => p.id)); W.setMe(meInfo());
       const r = myRow() || {}; W.role = live(m.phase) ? r.role : null; W.seeking = m.phase === 'seek'; W.blind = m.phase === 'hide' && r.role === 'seeker'; W.dead = live(m.phase) && !!r.found; W.frozen = W.blind || m.phase === 'results' || W.dead;
@@ -106,11 +107,21 @@
 
   /* ---------------- home and party ---------------- */
   function showHome() {
+    $('#roam').hidden = true; W.menuHidden = false; $('#menu-open').hidden = true; $('#home').classList.remove('folded');
     W.mode = 'home'; W.role = null; W.blind = false; W.setMap('lobby'); W.keep([]); W.frozen = false; W.tp(0, 8, 0);
     $('#home').hidden = false; $('#hud').hidden = true; $('#blind').hidden = true; touchControls(false);
     W.homeFrame = innerWidth < 760 ? { side: 0, up: 2.6 } : { side: -3.6, up: 1.2 };
   }
+  const ROAM = ['house', 'cabin', 'mansion'];
+  function roam(i, shuffle) {
+    S.roamI = i; const id = ROAM[i], seed = shuffle || !S.roamSeed ? (Math.random() * 1e9) | 0 : S.roamSeed; S.roamSeed = seed;
+    W.mode = 'roam'; W.role = null; W.blind = false; W.dead = false; W.frozen = false; W.menuHidden = true; W.keep([]); W.clearItems(); W.setMap(id, seed);
+    const c = globalThis.FOUND_LAYOUT.info(id).center; W.tp(c[0], c[1], Math.PI);   /* start in the middle of the house, where hiders start */
+    $('#home').hidden = true; $('#menu-open').hidden = true; $('#hud').hidden = true; $('#roam').hidden = false; touchControls(true);
+    $('#roam-name').textContent = globalThis.FOUND_LAYOUT.info(id).name;
+  }
   function enterParty() {
+    $('#roam').hidden = true; $('#menu-open').hidden = true;
     W.mode = 'play'; $('#home').hidden = true; $('#hud').hidden = false; touchControls(true);
     $('#code-tiles').innerHTML = S.party.code.split('').map(ch => `<b>${ch}</b>`).join(''); W.ring = false;
   }
@@ -297,6 +308,14 @@
     create() { send({ t: 'create' }); SFX.click(); },
     join() { const c = $('#code').value.trim().toUpperCase(); if (!/^[A-Z]{4}$/.test(c)) { toast('Party codes are 4 letters.'); return; } send({ t: 'join', code: c }); SFX.click(); },
     leave() { send({ t: 'leave' }); },
+    /* fold the home menu away to walk the plaza, or bring it back */
+    menu() { const h = $('#home'), fold = !W.menuHidden; W.menuHidden = fold; h.classList.toggle('folded', fold); $('#menu-open').hidden = !fold; touchControls(fold); SFX.click(); },
+    /* practice: a party of one starts straight away; the server fills it with computer hiders */
+    practice() { S.practice = true; send({ t: 'create' }); SFX.click(); },
+    /* explore: any map, alone, no server involved */
+    explore() { roam(0); SFX.click(); },
+    roamnext() { roam((S.roamI + 1) % ROAM.length); }, roamshuffle() { roam(S.roamI, true); },
+    roamexit() { showHome(); SFX.click(); },
     copy() { const url = location.origin + '/#' + S.party.code; (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast('Invite link copied. Friends can also type ' + S.party.code + '.'), () => toast('Party code: ' + S.party.code)); },
     start() { send({ t: 'start' }); },
     choose(v) { if (!S.offer) return; S.offer.mine = v; send({ t: 'choose', obj: v }); SFX.click(); $$('.pcard').forEach(c => c.classList.toggle('on', c.dataset.v === v)); },
