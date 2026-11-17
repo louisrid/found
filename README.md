@@ -30,8 +30,8 @@ npm start                 # http://localhost:3000
 
 ## Playing alone
 
-- **Walk right away:** the home screen is live. WASD or the arrow keys move you around the plaza; drag to turn the camera.
-  The **–** button folds the menu away (on phones this shows the joystick); **Menu** brings it back.
+- **Walk right away:** you land in the plaza with the menu folded into the corner. WASD moves you; drag to look around.
+  **Menu** opens it (Create, Join, Practice, Explore, Shop, Locker); the **–** button folds it away again.
 - **Practice:** a round on your own: you seek 3 computer hiders on the Cabin. Pays a quarter of normal coins.
 - **Explore:** walk the House, Cabin or Mansion with nobody else. **Next map** switches, **Rearrange** reshuffles the furniture.
 

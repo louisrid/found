@@ -107,9 +107,10 @@
 
   /* ---------------- home and party ---------------- */
   function showHome() {
-    $('#roam').hidden = true; W.menuHidden = false; $('#menu-open').hidden = true; $('#home').classList.remove('folded');
+    /* the home menu starts folded away: you land in the plaza, walking, with Menu in the corner */
+    $('#roam').hidden = true; W.menuHidden = true; $('#menu-open').hidden = false; $('#home').classList.add('folded');
     W.mode = 'home'; W.role = null; W.blind = false; W.setMap('lobby'); W.keep([]); W.frozen = false; W.tp(0, 8, Math.PI);
-    $('#home').hidden = false; $('#hud').hidden = true; $('#blind').hidden = true; touchControls(false);
+    $('#home').hidden = false; $('#hud').hidden = true; $('#blind').hidden = true; touchControls(true);
     W.homeFrame = innerWidth < 760 ? { side: 0, up: 2.6 } : { side: -3.6, up: 1.2 };
   }
   const ROAM = ['house', 'cabin', 'mansion'];

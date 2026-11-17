@@ -520,7 +520,7 @@
     let drag = null;
     canvas.addEventListener('pointerdown', e => { if (W.blocked()) return; canvas.setPointerCapture(e.pointerId); drag = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false }; });
     canvas.addEventListener('pointermove', e => { if (!drag || drag.id !== e.pointerId) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
-      if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) drag.moved = true; if (drag.moved) { const turnBy = dx * 0.006 * W.sens.x; if (walking) yaw -= turnBy; else { look -= turnBy; look = Math.atan2(Math.sin(look), Math.cos(look)); } cEl = Math.max(0.22, Math.min(0.95, cEl + dy * 0.0039 * W.sens.y * (W.sens.invY ? -1 : 1))); } });
+      if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) drag.moved = true; if (drag.moved) { const turnBy = dx * 0.009 * W.sens.x; if (walking) yaw -= turnBy; else { look -= turnBy; look = Math.atan2(Math.sin(look), Math.cos(look)); } cEl = Math.max(0.22, Math.min(0.95, cEl + dy * 0.0047 * W.sens.y * (W.sens.invY ? -1 : 1))); } });
     canvas.addEventListener('pointerup', e => { if (!drag || drag.id !== e.pointerId) return; const d = drag; drag = null; if (!d.moved && performance.now() - d.t < 400) tapTo(e.clientX, e.clientY); });
     canvas.addEventListener('wheel', e => { e.preventDefault(); W.zoom = Math.max(0.6, Math.min(1.7, W.zoom * (1 + Math.sign(e.deltaY) * 0.08))); }, { passive: false });
     let pinch = null; canvas.addEventListener('touchmove', e => { if (e.touches.length === 2) { const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); if (pinch) W.zoom = Math.max(0.6, Math.min(1.7, W.zoom * pinch / d)); pinch = d; drag = null; } }, { passive: true });
@@ -554,7 +554,7 @@
       let ix = 0, iz = 0;
       if (!locked && W.mode !== 'off' && !W.frozen && !W.typing) { if (K2.w) iz -= 1; if (K2.s) iz += 1; if (K2.a) ix -= 1; if (K2.d) ix += 1; ix += W.joy.x; iz += W.joy.y; }
       /* arrows turn the camera and tilt it; WASD walks */
-      if (!locked) { const turn = (K2.arrowleft ? 1 : 0) - (K2.arrowright ? 1 : 0), tilt = (K2.arrowup ? 1 : 0) - (K2.arrowdown ? 1 : 0); if (turn) { yaw += dt * 2.4 * turn * W.sens.x; m.path = null; } if (tilt) cEl = Math.max(0.22, Math.min(0.95, cEl + dt * 1.04 * tilt * W.sens.y * (W.sens.invY ? -1 : 1))); }
+      if (!locked) { const turn = (K2.arrowleft ? 1 : 0) - (K2.arrowright ? 1 : 0), tilt = (K2.arrowup ? 1 : 0) - (K2.arrowdown ? 1 : 0); if (turn) { yaw += dt * 3.2 * turn * W.sens.x; m.path = null; } if (tilt) cEl = Math.max(0.22, Math.min(0.95, cEl + dt * 1.25 * tilt * W.sens.y * (W.sens.invY ? -1 : 1))); }
       let len = Math.hypot(ix, iz); if (len > 1) { ix /= len; iz /= len; len = 1; }
       let fx2 = 0, fz2 = 0, sp = 0;
       if (len > 0.08) { m.path = null; if (marker) marker.visible = false; sp = (W.role === 'hider' ? 8 : K2.shift ? 12.5 : 9) * Math.min(1, len); fx2 = Math.sin(yaw) * -iz - Math.cos(yaw) * ix; fz2 = Math.cos(yaw) * -iz + Math.sin(yaw) * ix; const l = Math.hypot(fx2, fz2) || 1; fx2 /= l; fz2 /= l; }
@@ -582,7 +582,7 @@
       if (W.map !== 'lobby' && !W.frozen && !W.dead) W.items.forEach(it => { if (it.gift && Math.hypot(it.x - m.x, it.z - m.z) < 2.8 && now > it.pend) { it.pend = now + 1500; if (W.onGrab) W.onGrab(it.id); } });
       /* camera: always straight behind you, a little above */
       { const behind = yaw + Math.PI + look, d = Math.atan2(Math.sin(behind - cAz), Math.cos(behind - cAz)); cAz += d * Math.min(1, dt * 12); }
-      const prop = !!m.info.asProp, base = prop ? 10 : 13.5, dist = base * W.zoom * W.sens.dist, ty = (prop ? 1.8 : 3.4) + m.y * 0.5, v = tmpV().set(m.x, ty, m.z);
+      const prop = !!m.info.asProp, base = prop ? 11.5 : 15.5, dist = base * W.zoom * W.sens.dist, ty = (prop ? 1.8 : 3.4) + m.y * 0.5, v = tmpV().set(m.x, ty, m.z);
       /* a caught hider watches the seeker */
       if (W.dead) for (const o of W.others.values()) if (o.info && o.info.role === 'seeker') { v.set(o.x, 3.6, o.z); break; }
       if (!cT) cT = v.clone(); cT.lerp(v, 0.16);

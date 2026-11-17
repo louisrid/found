@@ -22,6 +22,7 @@ async def main():
             p.on('pageerror', lambda e: errs.append(name + ': ' + str(e))); p.on('console', lambda m: errs.append(name + ' console: ' + m.text) if m.type == 'error' else None); return p
         A = await page('A'); B = await page('B')
         await A.goto(URL); await until(A, '!!(window.FOUND_APP && FOUND_APP.S.me)'); await A.screenshot(path=OUT + '/home.png')
+        await A.click('#menu-open [data-a=menu]'); await A.wait_for_timeout(300)
         await A.click('[data-a=create]'); await until(A, '!!FOUND_APP.S.party'); code = await A.evaluate('FOUND_APP.S.party.code')
         await B.goto(URL + '/#' + code); await until(B, 'FOUND_APP.S.party && FOUND_APP.S.party.players.length === 2')
         await A.wait_for_timeout(1200); await A.click('[data-a=stake]'); await A.wait_for_timeout(500); await A.screenshot(path=OUT + '/lobby.png')
