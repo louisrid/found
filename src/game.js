@@ -8,8 +8,9 @@
    The server owns the clock, who is what, the decoys and every tag. */
 import '../public/objects.js';
 import '../public/layout.js';
-import { publicOf, addBox } from './profiles.js';
-const OBJ = globalThis.FOUND_OBJECTS, LAY = globalThis.FOUND_LAYOUT;
+import '../public/guns.js';
+import { publicOf, addBox, owns } from './profiles.js';
+const OBJ = globalThis.FOUND_OBJECTS, LAY = globalThis.FOUND_LAYOUT, GUNS = globalThis.FOUND_GUNS;
 
 export const AB = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 export const CFG = { maxPlayers: 12, pickMs: 8000, soloHideMs: 3000, resultsMs: 9000, swapMs: 5000, readyMs: 3000,
@@ -17,6 +18,8 @@ export const CFG = { maxPlayers: 12, pickMs: 8000, soloHideMs: 3000, resultsMs: 
   findPts: 250, allFoundBonus: 300, survivePts: 400, perSecond: 3, maxSpeed: 64,
   /* hints: in the last 30% of the seek the seeker is told which objects are still hidden. Moving: hiders earn a bonus for changing spot */
   /* hint 1 (last 30%): which objects; hint 2 (last 15%): which rooms. A hider who stays within 2 m for 20 s starts twitching */
+  /* every player earns 1,000 coins a minute (100 every 6 s). Guns (admin switch, lobby only): 100 hp, 150 coins a kill, back after 3 s with 2 s of shield */
+  payMs: 6000, payCoins: 100, killCoins: 150, respawnMs: 3000, shieldMs: 2000,
   hintAt: 0.3, hint2At: 0.15, moveBonus: 40, moveDist: 8, moveEveryMs: 10000, moveMax: 5, restlessMs: 20000, stillDist: 2 };
 /* each map: how long hiders get, how long seekers get, how many other objects and gift boxes are scattered */
 export const MAPCFG = {
@@ -39,7 +42,7 @@ export class Party {
   constructor(code, io, opts = {}) {
     this.code = code; this.io = io; this.now = opts.now || Date.now; this.rnd = opts.rnd || Math.random; this.cfg = Object.assign({}, CFG, opts.cfg || {}); this.over = opts.cfg || {};
     this.players = new Map(); this.host = null; this.phase = 'lobby'; this.round = null; this.n = 0; this.readyAt = 0;
-    this.mode = 'solo'; this.matchRound = 0; this.matchRounds = 1; this.mapPick = 'auto'; this.mapId = 'cabin'; this.seed = 0; this.mc = this.mapCfg('cabin'); this.stake = 0; this.pot = null; this.rules = Object.assign({}, RULES0);
+    this.guns = false; this.mode = 'solo'; this.matchRound = 0; this.matchRounds = 1; this.mapPick = 'auto'; this.mapId = 'cabin'; this.seed = 0; this.mc = this.mapCfg('cabin'); this.stake = 0; this.pot = null; this.rules = Object.assign({}, RULES0);
   }
   mapCfg(id) { return Object.assign({}, MAPCFG[id], this.over); }
   map() { return LAY.map(this.mapId, this.seed); }
@@ -49,10 +52,10 @@ export class Party {
   view(p) {
     const shown = this.live || this.phase === 'results';
     return Object.assign(publicOf(p.prof), { score: p.total + (this.phase === 'results' ? 0 : p.score), finds: p.finds, ready: p.ready, role: p.role, found: p.found, spec: !!p.spec,
-      prop: shown ? p.prop : null, picked: !!p.prop, here: !!p.conn });
+      prop: shown ? p.prop : null, picked: !!p.prop, here: !!p.conn, hp: this.guns ? p.hp : 0, dead: !!p.deadAt, kills: p.kills || 0 });
   }
   state() {
-    return { t: 'party', code: this.code, host: this.host, phase: this.phase, mode: this.phase === 'lobby' ? modeFor(this.players.size) : this.mode,
+    return { t: 'party', code: this.code, host: this.host, guns: this.guns, phase: this.phase, mode: this.phase === 'lobby' ? modeFor(this.players.size) : this.mode,
       map: this.phase === 'lobby' ? (this.mapPick === 'auto' ? mapFor(this.players.size) : this.mapPick) : this.mapId, mapPick: this.mapPick, stake: this.stake, rules: this.rules, times: (m => ({ hide: m.hideMs, seek: m.seekMs }))(this.phase === 'lobby' ? this.mapCfg(this.mapPick === 'auto' ? mapFor(this.players.size) : this.mapPick) : this.mc), pot: this.pot ? this.pot.amount * 2 : 0,
       players: [...this.players.values()].map(p => this.view(p)), round: this.roundInfo(), readyAt: this.readyAt || 0, max: this.cfg.maxPlayers, now: this.now() };
   }
@@ -75,7 +78,7 @@ export class Party {
       if (this.players.size >= this.cfg.maxPlayers) throw new Error('That party is full.');
       /* joining mid-round: watch and wander until the next one */
       p = { id: prof.id, prof, conn, score: 0, total: 0, finds: 0, ready: false, role: null, orig: null, prop: null, offer: null, found: false, turns: 0, tagAt: 0,
-        x: 0, z: 0, y: 0, ry: 0, at: this.now(), moved: true, gone: 0, spec: this.phase !== 'lobby' };
+        x: 0, z: 0, y: 0, ry: 0, at: this.now(), moved: true, gone: 0, spec: this.phase !== 'lobby', hp: GUNS.HP, deadAt: 0, kills: 0, shotAt: 0, shield: 0, payAt: this.now() + this.cfg.payMs };
       this.players.set(prof.id, p);
       this.spawn(p, this.players.size - 1);
     }
@@ -122,7 +125,7 @@ export class Party {
     /* the 1v1 pot: each player puts in the stake (or as much of it as the poorer one has) */
     this.pot = null;
     if (this.mode === 'duel' && this.stake > 0) { const ps = [...this.players.values()], amount = Math.min(this.stake, ...ps.map(p => p.prof.coins)); if (amount > 0) { for (const p of ps) { p.prof.coins -= amount; this.io.me(p); } this.pot = { amount, ids: ps.map(p => p.id) }; this.io.saved(); } }
-    for (const p of this.players.values()) { p.total = 0; p.spec = false; }
+    this.revive(); for (const p of this.players.values()) { p.total = 0; p.spec = false; }
     this.beginPick();
   }
   beginPick() {
@@ -186,7 +189,7 @@ export class Party {
   /* hiders still hidden, plus practice hiders not yet tagged */
   left() { const R = this.round; let n = this.active().filter(p => p.role === 'hider' && !p.found).length; if (R && R.items) for (const it of R.items.values()) if (it.bot) n++; return n; }
   move(p, b) {
-    const now = this.now();
+    const now = this.now(); if (p.deadAt) return;
     let x = +b.x, z = +b.z, y = +b.y || 0, ry = +b.ry || 0;
     if (![x, z, y, ry].every(Number.isFinite)) return;
     if (this.phase === 'hide' && p.role === 'seeker') { x = p.x; z = p.z; }   // seekers wait at the gate
@@ -197,6 +200,42 @@ export class Party {
     { const n = Math.max(1, Math.ceil(Math.hypot(x - p.x, z - p.z) / 0.5)); let cx = p.x, cz = p.z; for (let i = 1; i <= n; i++) { const r = LAY.collide(map, p.x + (x - p.x) * i / n, p.z + (z - p.z) * i / n, 0.55, cx, cz, y); if (i < n && (Math.abs(r[0] - (p.x + (x - p.x) * i / n)) > 1e-6 || Math.abs(r[1] - (p.z + (z - p.z) * i / n)) > 1e-6)) { cx = r[0]; cz = r[1]; break; } cx = r[0]; cz = r[1]; } x = cx; z = cz; }
     p.x = x; p.z = z; p.y = Math.max(0, Math.min(6, y)); p.ry = ry; p.at = now; p.f = (b.f | 0) & 15; p.moved = true;
     if (fixed) this.io.one(p, { t: 'fix', x: r2(x), z: r2(z) });
+  }
+  /* ---------- guns: the admin switches them on in the lobby; everyone there can shoot ---------- */
+  revive() { for (const q of this.players.values()) { q.hp = GUNS.HP; q.deadAt = 0; q.shield = 0; } }
+  setGuns(on) { if (this.phase !== 'lobby') return; this.guns = !!on; this.revive(); this.io.all(this, { t: 'guns', on: this.guns }); this.sync(); }
+  /* hitscan: each pellet goes out along the aim and hits the nearest player in its path (a generous width, because there is no crosshair) */
+  shoot(p, b) {
+    if (!this.guns || this.phase !== 'lobby' || p.deadAt || p.spec) return;
+    const now = this.now(), id = owns(p.prof, p.prof.gun) && GUNS.BY[p.prof.gun] ? p.prof.gun : GUNS.START, g = GUNS.BY[id];
+    if (now - p.shotAt < g.ms * 0.85) return; p.shotAt = now;
+    const ry = Number.isFinite(+b.ry) ? +b.ry : p.ry; p.ry = ry;
+    const rays = [], dmg = new Map();
+    for (let k = 0; k < g.pellets; k++) {
+      const a = ry + (g.pellets > 1 ? (k / (g.pellets - 1) - 0.5) * g.spread * 2 : 0) + (this.rnd() - 0.5) * (g.pellets > 1 ? g.spread * 0.4 : g.spread), sx = Math.sin(a), sz = Math.cos(a);
+      let best = null, bd = g.range;
+      for (const q of this.players.values()) {
+        if (q === p || q.spec || q.deadAt || now < q.shield) continue;
+        const dx = q.x - p.x, dz = q.z - p.z, fwd = dx * sx + dz * sz, side = Math.abs(dx * sz - dz * sx);
+        if (fwd > 0.3 && fwd <= bd && side <= 1.6 + fwd * 0.04) { best = q; bd = fwd; }
+      }
+      rays.push([r2(p.x + sx * bd), r2(p.z + sz * bd), best ? best.id : 0]);
+      if (best) dmg.set(best, (dmg.get(best) || 0) + g.dmg);
+    }
+    this.io.all(this, { t: 'shot', id: p.id, g: id, ry: r2(ry), e: rays });
+    for (const [q, d] of dmg) {
+      q.hp = Math.max(0, q.hp - d); this.io.all(this, { t: 'hit', id: q.id, hp: q.hp, dmg: d, by: p.id });
+      if (q.hp <= 0) {
+        q.deadAt = now; q.kills = 0; p.kills = (p.kills || 0) + 1; p.prof.coins += this.cfg.killCoins; this.io.me(p); if (this.io.touch) this.io.touch(p);
+        this.io.all(this, { t: 'kill', by: p.id, id: q.id, g: id, coins: this.cfg.killCoins }); this.sync();
+      }
+    }
+  }
+  respawns(now) {
+    for (const q of this.players.values()) if (q.deadAt && now - q.deadAt >= this.cfg.respawnMs) {
+      q.deadAt = 0; q.hp = GUNS.HP; q.shield = now + this.cfg.shieldMs; this.spawn(q, Math.floor(this.rnd() * 12));
+      this.io.all(this, { t: 'spawned', id: q.id }); this.sync();
+    }
   }
   /* positions: while hiders hide, seekers are told nothing */
   sendPositions() {
@@ -265,7 +304,7 @@ export class Party {
     for (const p of this.players.values()) { this.io.one(p, { t: 'results', ranking, reward: p.spec ? null : p.reward, ends: R.resultsEnd, win, final, round: this.matchRound, of: this.matchRounds, mode: this.mode }); this.io.me(p); }
   }
   toLobby() {
-    this.refundPot(); this.phase = 'lobby'; this.readyAt = 0; this.round = null;
+    this.refundPot(); this.phase = 'lobby'; this.readyAt = 0; this.round = null; this.revive();
     let i = 0; for (const p of this.players.values()) { p.ready = false; p.spec = false; p.role = p.orig = null; p.prop = null; p.offer = null; p.found = false; p.reward = null; p.score = 0; this.spawn(p, i++); }
     this.sync();
   }
@@ -275,6 +314,9 @@ export class Party {
   tick() {
     const now = this.now(), R = this.round;
     for (const [id, p] of this.players) if (!p.conn && p.gone && now - p.gone > 20000) this.remove(id);
+    /* everyone connected earns 1,000 coins a minute */
+    for (const p of this.players.values()) if (p.conn && now >= p.payAt) { p.payAt = now + this.cfg.payMs; if (this.cfg.payCoins) { p.prof.coins += this.cfg.payCoins; this.io.me(p); if (this.io.touch) this.io.touch(p); } }
+    if (this.guns) this.respawns(now);
     if (this.phase === 'lobby') { if (this.readyAt && now >= this.readyAt) { this.readyAt = 0; this.start(); } }
     else if (this.phase === 'pick') { if (now >= R.pickEnds) this.beginHide(); }
     else if (this.phase === 'hide') { if (now >= R.hideEnds) this.beginSeek(); }

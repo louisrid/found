@@ -79,7 +79,7 @@
     if (FX && part === 'outfit') part = 'bust';
     if (part && part !== 'fig') { if (part !== 'bust') { if (part !== 'outfit') M.remove(body); head.remove(core); if (part !== 'hat') head.remove(hatG); if (part !== 'acc') { head.remove(hacc); M.remove(bacc); } } }
     /* animation state lives on the group */
-    const A = { legs, arms, head, body, M, eyes, FL, blinkAt: 2 + Math.random() * 3, blinkT: 0, em: null, emT: 0, phase: Math.random() * 6, look: 0, lookT: 0 };
+    const A = { hand: arms[1], recoil: 0, legs, arms, head, body, M, eyes, FL, blinkAt: 2 + Math.random() * 3, blinkT: 0, em: null, emT: 0, phase: Math.random() * 6, look: 0, lookT: 0 };
     G.userData = A;
     G.userData.anim = function (t, dt, st) {
       st = st || {}; const mv = st.moving ? Math.min(1.6, st.speed || 1) : 0, run = st.running ? 1.5 : 1;
@@ -87,6 +87,7 @@
       legs[0].rotation.x += (swing - legs[0].rotation.x) * 0.3; legs[1].rotation.x += (-swing - legs[1].rotation.x) * 0.3;
       let armL = -swing * 0.8, armR = swing * 0.8, armZ = 0.08, bodyY = 0.23 + (mv ? Math.abs(Math.sin(w)) * 0.045 * mv : Math.sin(t * 1.6 + A.phase) * 0.01), lean = mv ? 0.08 * Math.min(1, mv) : 0;
       if (st.jumping) { armL = armR = -2.4; legs[0].rotation.x = -0.4; legs[1].rotation.x = 0.5; }
+      if (st.aim && !st.jumping) { A.recoil *= 0.8; armR = -1.5 - A.recoil; armZ = 0.02; }   /* holding a gun: right arm out in front, kicking up when it fires */
       if (A.em) { A.emT += dt; const e = A.em, k = A.emT; if (k > 2.6) A.em = null;
         if (e === 'wave') { armR = -2.6 + Math.sin(k * 14) * 0.5; armZ = 0.08; }
         else if (e === 'cheer') { armL = armR = -2.8 + Math.sin(k * 10) * 0.2; bodyY += Math.abs(Math.sin(k * 10)) * 0.08; }

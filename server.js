@@ -54,9 +54,10 @@ const io = {
   all(party, m) { const s = JSON.stringify(m); for (const p of party.players.values()) send(p.conn, s); },
   one(p, m) { send(p.conn, m); },
   me(p) { send(p.conn, { t: 'me', me: P.privateOf(p.prof, Date.now()) }); },
+  touch(p) { store.touch(p.id); },
   saved() { store.touch(); }
 };
-const partyOpts = TEST_FAST ? { cfg: { pickMs: 1500, hideMs: 1500, soloHideMs: 500, seekMs: 12000, resultsMs: 1500, swapMs: 1000, readyMs: 500, tagCooldownMs: 50, fixedSeed: 0 } } : {};
+const partyOpts = TEST_FAST ? { cfg: { pickMs: 1500, hideMs: 1500, soloHideMs: 500, seekMs: 12000, resultsMs: 1500, swapMs: 1000, readyMs: 500, tagCooldownMs: 50, fixedSeed: 0, payCoins: 0 } } : {};
 function leave(c) {
   const party = c.party; if (!party) return; c.party = null;
   party.remove(c.prof.id);
@@ -98,7 +99,19 @@ const handlers = {
     const n = 16, at = Math.floor(Math.random() * n); c.mini = { at, until: Date.now() + P.MINI.ms }; send(c, { t: 'mini', cells: Array.from({ length: n }, (_, i) => i === at ? b : a), ms: P.MINI.ms, left: P.miniLeft(c.prof, Date.now()) }); },
   minipick(c, b) { const g = c.mini; c.mini = null; if (!g) return; const win = Number(b.i) === g.at && Date.now() <= g.until + 500, coins = win ? P.miniWin(c.prof, Date.now()) : 0; if (coins) store.touch(c.prof.id); send(c, { t: 'minires', win, coins, at: g.at }); me(c); },
   gift(c, b) { const party = need(c), to = party.players.get(String(b.to)); if (!to) throw new Error('They left.'); P.giveCoins(c.prof, to.prof, Number(b.n)); store.touch(c.prof.id); store.touch(to.prof.id); me(c); send(c, { t: 'sent', n: Number(b.n), to: to.prof.name }); if (to.conn) { send(to.conn, { t: 'gifted', from: c.prof.name, n: Number(b.n) }); me(to.conn); } },
-  daily(c) { P.claimDaily(c.prof, Date.now()); store.touch(c.prof.id); me(c); }
+  daily(c) { P.claimDaily(c.prof, Date.now()); store.touch(c.prof.id); me(c); },
+  /* guns: only the admin can switch them on. The admin unlocks once with ADMIN_CODE (set on the server, never in the repo); the profile then remembers it */
+  admin(c, b) {
+    const want = process.env.ADMIN_CODE || ''; if (!want) throw new Error('Admin is off. Set ADMIN_CODE on the server first.');
+    if ((c.adminTries = (c.adminTries || 0) + 1) > 5) throw new Error('Too many tries. Reload and try again.');
+    const h = s => crypto.createHash('sha256').update(String(s)).digest();
+    if (!crypto.timingSafeEqual(h(want), h(b.code || ''))) throw new Error('Wrong admin code.');
+    c.prof.admin = true; store.touch(c.prof.id); me(c); send(c, { t: 'got', coins: 0, why: 'admin' });
+  },
+  guns(c, b) { const party = need(c); if (!c.prof.admin) throw new Error('Only the admin can do that.'); party.setGuns(!!b.on); },
+  shoot(c, b) { const party = c.party; if (party) party.shoot(party.players.get(c.prof.id), b); },
+  /* the gun crate: pay, get a random gun, see it in the reveal */
+  crate(c) { const r = P.openCrate(c.prof); store.touch(c.prof.id); send(c, { t: 'crated', r }); me(c); if (c.party) c.party.sync(); }
 };
 function need(c) { if (!c.party) throw new Error('Join a party first.'); return c.party; }
 const me = c => send(c, { t: 'me', me: P.privateOf(c.prof, Date.now()) });

@@ -14,6 +14,7 @@
   const ac = () => { if (!AC) try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} if (AC && AC.state === 'suspended') AC.resume(); return AC; };
   function tone(f, d, type, vol, slide) { if (muted) return; const a = ac(); if (!a) return; const o = a.createOscillator(), g = a.createGain(), t = a.currentTime; o.type = type || 'sine'; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + d); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.12, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + d + 0.02); }
   const SFX = { pop: () => { tone(520, 0.12, 'triangle', 0.14, 1040); setTimeout(() => tone(880, 0.1, 'sine', 0.08, 1320), 60); }, tick: () => tone(660, 0.07, 'square', 0.04), go: () => { tone(523, 0.12, 'triangle', 0.12); setTimeout(() => tone(784, 0.2, 'triangle', 0.12), 110); },
+    pew: v => tone(620 + Math.random() * 120, 0.09, 'square', v || 0.05, 160), boom: () => { tone(120, 0.25, 'sawtooth', 0.12, 40); },
     nope: () => tone(220, 0.14, 'sine', 0.07, 150), click: () => tone(900, 0.03, 'square', 0.025), win: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.22, 'triangle', 0.11), i * 120)) };
 
   /* ---------------- identity and the socket ---------------- */
@@ -36,11 +37,13 @@
   const live = ph => ph === 'hide' || ph === 'seek';
   const myRow = () => S.party && S.me ? S.party.players.find(p => p.id === S.me.id) : null;
   /* a hider in a round is drawn as their object */
-  const deco = p => Object.assign({}, p, { asProp: live(S.phase) && p.role === 'hider' && !p.found ? p.prop : null, ghost: live(S.phase) && p.role === 'hider' && p.found });   // a caught hider is out and unseen
-  const meInfo = () => { const r = myRow() || {}; return deco({ id: S.me.id, name: S.me.name, look: S.me.look, pet: S.me.pet, col: S.me.col, role: r.role, found: r.found, prop: r.prop }); };
+  const gunsOn = () => !!(S.party && S.party.guns && S.party.phase === 'lobby');
+  const GUNS = globalThis.FOUND_GUNS, myGun = () => GUNS.BY[S.me && S.me.gun] || GUNS.BY[GUNS.START];
+  const deco = p => Object.assign({}, p, { asProp: live(S.phase) && p.role === 'hider' && !p.found ? p.prop : null, ghost: live(S.phase) && p.role === 'hider' && p.found, gun: gunsOn() ? (GUNS.BY[p.gun] ? p.gun : GUNS.START) : '' });   // a caught hider is out and unseen
+  const meInfo = () => { const r = myRow() || {}; return deco({ id: S.me.id, name: S.me.name, look: S.me.look, pet: S.me.pet, col: S.me.col, gun: S.me.gun, role: r.role, found: r.found, prop: r.prop }); };
   const playerName = id => { const p = S.party && S.party.players.find(q => q.id === id); return p ? p.name : 'Someone'; };
   const ON = {
-    me(m) { S.me = m.me; W.setMe(meInfo()); paintMe(); if (!S.booted) boot(); if (S.layer === 'locker' || S.layer === 'shop') paintWardrobe(true); },
+    me(m) { const was = S.me; S.me = m.me; W.setMe(meInfo()); paintMe(); if (S.party && was && was.admin !== m.me.admin) paintHud(); if (!S.booted) boot(); if (S.layer === 'locker' || S.layer === 'shop') paintWardrobe(true); },
     authfail() { ident(true); ws.close(); },
     replaced() { replaced = true; layer(`<div class="card modal narrow"><div class="mhead"><h2>Opened elsewhere</h2></div><div class="mbody"><p>FOUND is open in another tab or device. Close that one, then reload here.</p><div class="mfoot"><button class="btn black" onclick="location.reload()">Reload</button></div></div></div>`, 'replaced'); },
     party(m) {
@@ -50,9 +53,10 @@
       if (S.practice && m.phase === 'lobby' && m.players.length === 1) { S.practice = false; send({ t: 'start' }); }
       for (const p of m.players) W.upsert(deco(p));
       W.keep(m.players.map(p => p.id)); W.setMe(meInfo());
-      const r = myRow() || {}; W.role = live(m.phase) ? r.role : null; W.seeking = m.phase === 'seek'; W.blind = m.phase === 'hide' && r.role === 'seeker'; W.dead = live(m.phase) && !!r.found; W.frozen = W.blind || m.phase === 'results' || W.dead;
+      W.gunsOn = gunsOn(); if (W.gunsOn) { for (const p of m.players) { W.setHp(p.id, p.hp); W.setDead(p.id, !!p.dead); } S.dead = !!(myRow() || {}).dead; } else { S.dead = false; W.clearDead(); }
+      const r = myRow() || {}; W.role = live(m.phase) ? r.role : null; W.seeking = m.phase === 'seek'; W.blind = m.phase === 'hide' && r.role === 'seeker'; W.dead = live(m.phase) && !!r.found; W.frozen = W.blind || m.phase === 'results' || W.dead || !!S.dead;
       if (prev !== m.phase) phaseChanged(prev, m.phase);
-      paintHud(); paintRole();
+      paintHud(); paintRole(); paintGun();
     },
     tp(m) { W.setMap(m.map, m.seed); W.tp(m.x, m.z, m.ry); },
     unready() { S.hold = W.ring; if (S.hold) toast('Settings changed. Step out and back into the ring to accept.'); },
@@ -79,7 +83,7 @@
     restless(m) { W.restless = !!m.on; if (m.on) { SFX.nope(); toast('You have kept still too long: your object is twitching. Move to stop it.'); } paintRole(); },
     bonus(m) { S.moveLeft = m.left; SFX.win(); toast(`+${m.n} for moving to a new spot` + (m.left ? '' : ' (that was the last one)')); paintRole(); },
     results(m) { S.results = m; showResults(); if (m.reward && m.reward.won) SFX.win(); },
-    got(m) { SFX.win(); toast(m.why === 'spin' ? (m.box ? 'The wheel gave you a Mystery Box!' : `The wheel gave you ${fmt(m.coins)} coins!`) : `Collected ${fmt(m.coins)} coins.`); },
+    got(m) { SFX.win(); if (m.why === 'admin') { toast('Admin unlocked. You can switch guns on in the lobby.'); return; } toast(m.why === 'spin' ? (m.box ? 'The wheel gave you a Mystery Box!' : `The wheel gave you ${fmt(m.coins)} coins!`) : `Collected ${fmt(m.coins)} coins.`); },
     sent(m) { toast(`Sent ${fmt(m.n)} coins to ${esc(m.to)}.`); },
     gifted(m) { SFX.win(); toast(`${esc(m.from)} gave you ${fmt(m.n)} coins!`); },
     mini(m) { S.mini = m; const end = Date.now() + m.ms;
@@ -89,9 +93,21 @@
       const f = $('#layer .mfoot'); if (m.win) SFX.win(); else SFX.nope();
       f.innerHTML = `<b class="mini-msg">${m.win ? (m.coins ? '+' + m.coins + ' coins' : 'Right! (no more paid wins today)') : 'Not that one'}</b><button class="btn black" data-a="mini">Again</button><button class="btn" data-a="close">Close</button>`; },
     opened(m) { if (S.reveal) S.reveal.result(m.r); },
+    crated(m) { if (S.crate) S.crate.result(m.r); },
+    /* guns */
+    guns(m) { toast(m.on ? 'Guns are ON. Press F or tap FIRE.' : 'Guns are off.'); SFX.pop(); },
+    shot(m) { W.shot(m); const mine = S.me && m.id === S.me.id, big = (GUNS.BY[m.g] || {}).dmg >= 50; if (mine) { if (big) SFX.boom(); else SFX.pew(0.05); } else SFX.pew(0.018); },
+    hit(m) { W.hit(m); if (S.me && m.by === S.me.id) SFX.tick(); if (S.me && m.id === S.me.id) { S.hp = m.hp; paintGun(); const v = $('#hurt'); v.classList.remove('on'); void v.offsetWidth; v.classList.add('on'); } },
+    kill(m) {
+      W.killed(m.id); const mine = S.me && m.by === S.me.id, me = S.me && m.id === S.me.id;
+      feed(`<b>${esc(playerName(m.by))}</b> ▸ ${esc(playerName(m.id))}`);
+      if (me) { S.dead = true; W.frozen = true; S.deadAt = Date.now(); SFX.nope(); paintGun(); }
+      else if (mine) { SFX.win(); toast(`+${m.coins} coins`); }
+    },
+    spawned(m) { W.spawned(m.id); if (S.me && m.id === S.me.id) { S.dead = false; S.hp = GUNS.HP; W.frozen = false; paintGun(); } },
     bought(m) { SFX.pop(); toast(`Bought ${m.r.name}.`); S.sel = null; },
     left() { leaveParty(); },
-    err(m) { toast(m.m); SFX.nope(); if (m.of === 'join' || m.of === 'auth') { keepCode(''); if (!S.party) showHome(); } if (m.of === 'open' && S.reveal) S.reveal.fail(); }
+    err(m) { toast(m.m); SFX.nope(); if (m.of === 'join' || m.of === 'auth') { keepCode(''); if (!S.party) showHome(); } if (m.of === 'open' && S.reveal) S.reveal.fail(); if (m.of === 'crate' && S.crate) S.crate.fail(); }
   };
 
   /* ---------------- boot ---------------- */
@@ -103,7 +119,8 @@
   function paintMe() {
     const m = S.me; if (!m) return; const n = m.boxes + (m.daily ? 1 : 0);
     if (document.activeElement !== $('#name')) $('#name').value = m.name;
-    $$('.coins').forEach(e => { e.textContent = fmt(m.coins); });
+    const up = S.lastCoins != null && m.coins > S.lastCoins; S.lastCoins = m.coins;
+    $$('.coins').forEach(e => { e.textContent = fmt(m.coins); if (up) { e.classList.remove('pop'); void e.offsetWidth; e.classList.add('pop'); } });
     $$('.shop-badge').forEach(b => { b.hidden = !n; b.textContent = n; });
     const ib = $('#idle-b'), sb = $('#spin-b'), mb = $('#mini-b');
     if (ib) { ib.innerHTML = `Collect ${fmt(m.idle || 0)}<small>${m.idleRate}/hour while away</small>`; ib.classList.toggle('hot', (m.idle || 0) > 0); }
@@ -146,7 +163,8 @@
     $('#board').innerHTML = P.players.map(p => {
       const col = W.PC[p.col % W.PC.length], host = p.id === P.host ? ' <small>HOST</small>' : '';
       const st = ph === 'lobby' ? (p.ready ? 'READY' : '') : p.spec ? 'WATCHING' : p.role === 'seeker' ? 'SEEKER' : ph === 'pick' ? (p.picked ? 'PICKED' : 'PICKING') : 'HIDER';
-      return `<div class="prow${p.id === meId ? ' me' : ''}${p.here === false ? ' away' : ''}"><i class="dot" style="background:${col}"></i><span class="nm">${esc(p.name)}${host}</span><span class="st">${st}</span>${ph === 'lobby' && p.id !== meId ? `<button class="btn mini-gift" data-a="gift" data-v="${p.id}">Gift 100</button>` : ''}</div>`;
+      const g = ph === 'lobby' && P.guns, hpbar = g ? `<div class="hpbar"><u style="width:${Math.max(0, Math.min(100, p.hp || 0))}%"></u></div>` : '';
+      return `<div class="prow${p.id === meId ? ' me' : ''}${p.here === false ? ' away' : ''}"><i class="dot" style="background:${col}"></i><span class="nm">${esc(p.name)}${host}</span><span class="st">${g ? (p.dead ? 'OUT' : (p.kills || 0) + ' K') : st}</span>${hpbar}${ph === 'lobby' && !g && p.id !== meId ? `<button class="btn mini-gift" data-a="gift" data-v="${p.id}">Gift 100</button>` : ''}</div>`;
     }).join('');
     const lb = $('#lobby-bar');
     if (ph === 'lobby') {
@@ -154,8 +172,9 @@
       const how = P.mode === 'solo' ? 'Practice: you seek 3 hidden objects. Invite a friend for a 1v1.' : P.mode === 'duel' ? '1v1: two rounds, you swap sides.' : `Party of ${n}: ${n >= 7 ? 'two seek' : 'one seeks'}, the rest hide.`;
       const mi = globalThis.FOUND_LAYOUT.info(P.map), mapB = isHost ? `<button class="btn" data-a="map">Map: ${mi.name}${P.mapPick === 'auto' ? '' : ' ✓'}</button>` : `<div class="hint"><span>Map: <b>${mi.name}</b></span></div>`;
       const stakeB = P.mode !== 'duel' ? '' : isHost ? `<button class="btn" data-a="stake">Stake: ${P.stake ? fmt(P.stake) : 'none'}</button>` : P.stake ? `<div class="hint"><span>Stake: <b>${fmt(P.stake)}</b> each</span></div>` : '';
+      const me = S.me || {}, gunB = me.admin ? `<button class="btn ${P.guns ? 'black' : ''}" data-a="guns">Guns: ${P.guns ? 'ON' : 'OFF'}</button>` : /louis/i.test(me.name || '') ? `<button class="btn" data-a="admin">Admin</button>` : '';
       lb.hidden = false;
-      lb.innerHTML = `<div class="hint"><span><b>${how}</b><br>${P.readyAt ? 'Starting…' : `Stand in the READY ring to start · ${ready}/${n}`}</span></div>${mapB}${stakeB}<button class="btn" data-a="rules">Rules${isHost ? '' : ' (view)'}</button>` + (isHost ? `<button class="btn black" data-a="start">Start</button>` : '');
+      lb.innerHTML = (P.guns ? `<div class="hint guns-hint"><span>Guns on<small>Hold F or FIRE · 150 coins a kill</small></span></div>` : '') + gunB + `<button class="btn" data-a="crate">Gun Crate ${fmt(C.CRATE.price)}</button><div class="hint"><span><b>${how}</b><br>${P.readyAt ? 'Starting…' : `Stand in the READY ring to start · ${ready}/${n}`}</span></div>${mapB}${stakeB}<button class="btn" data-a="rules">Rules${isHost ? '' : ' (view)'}</button>` + (isHost ? `<button class="btn black" data-a="start">Start</button>` : '');
     } else if (!S.tipUntil || Date.now() > S.tipUntil) lb.hidden = true;
   }
   function tip(html, ms) { const lb = $('#lobby-bar'); lb.hidden = false; lb.innerHTML = `<div class="hint"><span>${html}</span></div>`; S.tipUntil = Date.now() + ms; setTimeout(() => { if (Date.now() >= S.tipUntil && S.phase !== 'lobby') lb.hidden = true; }, ms + 50); }
@@ -235,7 +254,7 @@
   }
   function layer(html, name) { if (S.stage) { S.stage.stop(); S.stage = null; } const L = $('#layer'); L.innerHTML = html; L.hidden = false; S.layer = name; W.keys = {}; }
   function closeLayer(name) { if (name && S.layer !== name) return; const L = $('#layer'); if (S.stage) { S.stage.stop(); S.stage = null; } L.hidden = true; L.innerHTML = ''; S.layer = null; }
-  W.blocked = () => !!S.layer && S.layer !== 'results' || !!S.reveal;
+  W.blocked = () => !!S.layer && S.layer !== 'results' || !!S.reveal || !!S.crate;
 
   /* pick: hiders choose a disguise, the seeker waits */
   function showPick() {
@@ -260,8 +279,9 @@
   }
 
   /* ---------------- locker (what you own) and shop (what you can buy) ---------------- */
-  const SLOTS = [['outfit', 'Outfits'], ['hat', 'Hats'], ['acc', 'Extras'], ['pet', 'Pets']], LOOKS = [['look', 'Hair & skin'], ['col', 'Colour']];
-  const RANK = { starter: 0, common: 1, rare: 2, epic: 3, legendary: 4, mythic: 5 };
+  const SLOTS = [['outfit', 'Outfits'], ['hat', 'Hats'], ['acc', 'Extras'], ['pet', 'Pets'], ['gun', 'Guns']], LOOKS = [['look', 'Hair & skin'], ['col', 'Colour']];
+  const RANK = { starter: 0, common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5, mythic: 6 };
+  const gunFor = () => wTab === 'gun' ? S.me.gun || GUNS.START : '';
   let wTab = 'outfit', wMode = 'locker';
   const owned = id => C.STARTER.includes(id) || S.me.own.includes(id);
   const myCol = () => W.PC[S.me.col % W.PC.length];
@@ -269,13 +289,13 @@
     wMode = mode; S.sel = null; if (mode === 'shop' && (wTab === 'look' || wTab === 'col')) wTab = 'outfit';
     layer(`<div class="card modal"><div class="mhead"><div><h2>${mode === 'shop' ? 'Shop' : 'Locker'}</h2><div class="sub"><span class="pill coin coins"></span></div></div><div class="mtools"><button class="btn sm" data-a="${mode === 'shop' ? 'locker' : 'shop'}">${mode === 'shop' ? 'Locker' : 'Shop'}</button><button class="btn icon" data-a="close" aria-label="Close">&#x2715;</button></div></div>
       <div class="locker"><div class="stage"><canvas id="lk-stage"></canvas><div class="buy" id="lk-buy"></div></div><div class="mbody" id="lk-body"></div></div></div>`, mode);
-    S.stage = W.stage($('#lk-stage')); if (S.stage) S.stage.figure(S.me.look, S.me.pet, myCol());
+    S.stage = W.stage($('#lk-stage')); if (S.stage) S.stage.figure(S.me.look, S.me.pet, myCol(), gunFor());
     paintMe(); paintWardrobe();
   }
   let iconJob = 0;
   function paintWardrobe(fromMe) {
     const me = S.me, body = $('#lk-body'); if (!body) return; const shop = wMode === 'shop';
-    if (fromMe) { paintMe(); if (S.stage && !S.sel) S.stage.figure(me.look, me.pet, myCol()); }
+    if (fromMe) { paintMe(); if (S.stage && !S.sel) S.stage.figure(me.look, me.pet, myCol(), gunFor()); }
     const tabs = `<div class="tabs">${SLOTS.concat(shop ? [] : LOOKS).map(s => `<button class="tab${s[0] === wTab ? ' on' : ''}" data-a="wtab" data-v="${s[0]}">${s[1]}</button>`).join('')}</div>`;
     let inner = '';
     if (wTab === 'look') inner = `<h4>Hair</h4><div class="hairs">${D.HAIRS.map(h => `<button class="tab${me.look.hair === h[0] ? ' on' : ''}" data-a="hair" data-v="${h[0]}">${h[1]}</button>`).join('')}</div>
@@ -284,12 +304,13 @@
     else if (wTab === 'col') inner = `<h4>Your colour</h4><div class="swatches">${W.PC.map((c, i) => `<button class="sw${me.col === i ? ' on' : ''}" style="background:${c}" data-a="col" data-v="${i}" aria-label="Colour ${i + 1}"></button>`).join('')}</div>`;
     else {
       let list = C.ITEMS.filter(r => r[1] === wTab).map(r => C.BY[r[0]]).filter(i => shop ? !owned(i.id) : owned(i.id)).sort((a, b) => RANK[a.rarity] - RANK[b.rarity]);
-      const cur = wTab === 'pet' ? me.pet : me.look[wTab];
-      const none = !shop && wTab !== 'outfit' ? `<div class="it${!cur ? ' on' : ''}" data-a="wear" data-v=""><i class="none"></i><b>None</b></div>` : '';
+      const cur = wTab === 'pet' ? me.pet : wTab === 'gun' ? me.gun : me.look[wTab];
+      const none = !shop && wTab !== 'outfit' && wTab !== 'gun' ? `<div class="it${!cur ? ' on' : ''}" data-a="wear" data-v=""><i class="none"></i><b>None</b></div>` : '';
       const tile = i => `<div style="background:${pastel(C.RCOL[i.rarity])}" class="it${(shop ? S.sel === i.id : cur === i.id) ? ' on' : ''}" data-a="${shop ? 'pick' : 'wear'}" data-v="${i.id}"><img data-icon="${i.id}" data-slot="${i.slot}" alt=""><b>${esc(i.name)}</b>${shop ? `<span class="p">${fmt(C.PRICE[i.rarity])}</span>` : ''}</div>`;
-      const box = shop ? `<div class="boxbar"><img src="${W.giftIcon('box')}" alt=""><div><b>Mystery Box${me.boxes ? ' ×' + me.boxes : ''}</b><span>A random item you don't own.</span></div><div class="boxbtns">${me.daily ? '<button class="btn black" data-a="daily">Free today</button>' : ''}${me.boxes ? '<button class="btn black" data-a="open">Open</button>' : ''}<button class="btn" data-a="buybox"${me.coins >= C.BOX.price ? '' : ' disabled'}>Buy ${fmt(C.BOX.price)}</button></div></div>` : '';
-      const legend = shop ? `<div class="legend">${['common', 'rare', 'epic', 'legendary', 'mythic'].map(r => `<span style="background:${C.RCOL[r]}">${C.RNAME[r]} ${fmt(C.PRICE[r])}</span>`).join('')}</div><p class="earn-line">Get coins by playing rounds, collecting idle coins, the daily spin and Odd one out.</p>` : '';
-      inner = box + legend + (list.length || none ? `<div class="grid">${none}${list.map(tile).join('')}</div>` : `<p class="big">${shop ? 'You own all of these.' : 'Nothing here yet. Visit the shop.'}</p>`);
+      const crate = shop && wTab === 'gun' ? `<div class="boxbar"><img data-icon="g_cosmic" data-slot="gun" alt=""><div><b>Gun Crate</b><span>A random gun you don't own. Coins come in at 1,000 a minute.</span></div><div class="boxbtns"><button class="btn black" data-a="crate"${me.coins >= C.CRATE.price ? '' : ' disabled'}>Open ${fmt(C.CRATE.price)}</button></div></div>` : '';
+      const box = shop && wTab !== 'gun' ? `<div class="boxbar"><img src="${W.giftIcon('box')}" alt=""><div><b>Mystery Box${me.boxes ? ' ×' + me.boxes : ''}</b><span>A random item you don't own.</span></div><div class="boxbtns">${me.daily ? '<button class="btn black" data-a="daily">Free today</button>' : ''}${me.boxes ? '<button class="btn black" data-a="open">Open</button>' : ''}<button class="btn" data-a="buybox"${me.coins >= C.BOX.price ? '' : ' disabled'}>Buy ${fmt(C.BOX.price)}</button></div></div>` : '';
+      const legend = shop ? `<div class="legend">${['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'].map(r => `<span style="background:${C.RCOL[r]}">${C.RNAME[r]} ${fmt(C.PRICE[r])}</span>`).join('')}</div><p class="earn-line">Get coins by playing rounds, collecting idle coins, the daily spin and Odd one out.</p>` : '';
+      inner = crate + box + legend + (list.length || none ? `<div class="grid">${none}${list.map(tile).join('')}</div>` : `<p class="big">${shop ? 'You own all of these.' : 'Nothing here yet. Visit the shop.'}</p>`);
     }
     body.innerHTML = tabs + inner; paintBuy();
     const job = ++iconJob, imgs = $$('#lk-body img[data-icon]');
@@ -304,12 +325,13 @@
     const price = C.PRICE[it.rarity], can = S.me.coins >= price;
     el.innerHTML = `<b>${esc(it.name)}</b><span style="color:${C.RCOL[it.rarity]}">${C.RNAME[it.rarity]}</span><button class="btn black big" data-a="buy" data-v="${it.id}"${can ? '' : ' disabled'}>${can ? 'Buy ' + fmt(price) : 'Need ' + fmt(price - S.me.coins) + ' more'}</button>`;
   }
-  function tryOn(id) { const it = C.BY[id], look = Object.assign({}, S.me.look); let pet = S.me.pet; if (it.slot === 'pet') pet = id; else look[it.slot] = id; if (S.stage) S.stage.figure(look, pet, myCol()); }
+  function tryOn(id) { const it = C.BY[id], look = Object.assign({}, S.me.look); let pet = S.me.pet, gun = gunFor(); if (it.slot === 'pet') pet = id; else if (it.slot === 'gun') gun = id; else look[it.slot] = id; if (S.stage) S.stage.figure(look, pet, myCol(), gun); }
   function wear(slot, id) {
+    if (slot === 'gun') { S.me.gun = id; SFX.click(); send({ t: 'equip', gun: id }); W.setMe(meInfo()); if (S.stage) S.stage.figure(S.me.look, S.me.pet, myCol(), id); if (S.layer === 'locker') paintWardrobe(); return; }
     const look = Object.assign({}, S.me.look); let pet = S.me.pet; if (slot === 'pet') pet = id; else look[slot] = id;
-    S.me.look = look; S.me.pet = pet; SFX.click(); send({ t: 'equip', look, pet }); if (S.stage) S.stage.figure(look, pet, myCol()); if (S.layer === 'locker') paintWardrobe();
+    S.me.look = look; S.me.pet = pet; SFX.click(); send({ t: 'equip', look, pet }); if (S.stage) S.stage.figure(look, pet, myCol(), gunFor()); if (S.layer === 'locker') paintWardrobe();
   }
-  function setLook(k, v) { const l = Object.assign({}, S.me.look, { [k]: v }); S.me.look = l; send({ t: 'equip', look: l }); if (S.stage) S.stage.figure(l, S.me.pet, myCol()); paintWardrobe(); }
+  function setLook(k, v) { const l = Object.assign({}, S.me.look, { [k]: v }); S.me.look = l; send({ t: 'equip', look: l }); if (S.stage) S.stage.figure(l, S.me.pet, myCol(), gunFor()); paintWardrobe(); }
   /* opening a Mystery Box: tap, it rattles, it opens */
   function reveal() {
     if (!S.me.boxes) return; const back = S.layer; closeLayer();
@@ -328,6 +350,82 @@
     };
     const finish = wearIt => { st.stop(); el.remove(); S.reveal = null; if (wearIt) wear(res.slot, res.item); if (back === 'shop' || back === 'locker') showWardrobe(back); };
     el.addEventListener('click', e => { const b = e.target.closest('[data-rv]'); if (!b) return; const a = b.dataset.rv; if (a === 'again') { finish(); closeLayer(); reveal(); } else finish(a === 'wear'); });
+  }
+
+
+  /* ---------------- guns: fire, health, the death card ---------------- */
+  function fire() {
+    if (!gunsOn() || S.dead || (S.layer && S.layer !== 'results') || S.reveal || S.crate) return;
+    const d = myGun(), t = performance.now(); if (t - (S.fireAt || 0) < d.ms) return; S.fireAt = t;
+    const ry = W.aimAt(d.range); if (W.me) { W.me.ry = ry; W.aimHold = performance.now() + 260; }
+    send({ t: 'shoot', ry: +ry.toFixed(3) });
+  }
+  setInterval(() => { if (S.fireHeld) fire(); }, 30);
+  function paintGun() {
+    const on = gunsOn(), hp = $('#hp'), fb = $('#fire'), rip = $('#rip');
+    hp.hidden = !on; fb.hidden = !on; $('#keys').hidden = !on || !!W.touch; $('#hud').classList.toggle('guns', on);
+    if (!on) { rip.hidden = true; return; }
+    const r = myRow() || {}, n = S.hp == null ? GUNS.HP : S.hp; $('#hp-n').textContent = Math.max(0, Math.round(n)); const f = $('#hp-fill'); f.style.transform = `scaleX(${Math.max(0, n / GUNS.HP)})`; f.style.background = n > 50 ? '#2fd84a' : n > 25 ? '#ffc61a' : '#ff3b30';
+    hp.classList.toggle('low', n <= 25); $('#hp-k').textContent = `${r.kills || 0} kill${r.kills === 1 ? '' : 's'}`;
+    const g = myGun(); if (fb.dataset.g !== g.id) { fb.dataset.g = g.id; $('#fire-i').src = W.itemIcon(g.id, 'gun'); } $('#fire-g').textContent = g.name; rip.hidden = !S.dead;
+  }
+  /* the FIRE button shows the gun and fills back in as it cools; it lights up while held */
+  (function cool() { requestAnimationFrame(cool); const fb = $('#fire'); if (fb.hidden) return; const d = myGun(); fb.style.setProperty('--cd', Math.min(1, (performance.now() - (S.fireAt || 0)) / d.ms).toFixed(2)); fb.classList.toggle('held', !!S.fireHeld); })();
+  setInterval(() => { if (!S.dead) return; const left = Math.max(0, Math.ceil((3000 - (Date.now() - (S.deadAt || 0))) / 1000)); const e = $('#rip-n'); if (e) e.textContent = left; }, 200);
+  $('#fire').addEventListener('pointerdown', e => { e.preventDefault(); S.fireHeld = true; fire(); });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('#fire').addEventListener(ev, () => { S.fireHeld = false; });
+  addEventListener('keyup', e => { if (e.key.toLowerCase() === 'f') S.fireHeld = false; });
+  /* right mouse button: hold to fire */
+  $('#world').addEventListener('contextmenu', e => { if (gunsOn()) e.preventDefault(); });
+  $('#world').addEventListener('pointerdown', e => { if (e.button === 2 && gunsOn()) { e.preventDefault(); S.fireHeld = true; S.rmb = e.pointerId; fire(); } });
+  addEventListener('pointerup', e => { if (e.button === 2) { S.fireHeld = false; S.rmb = null; } });
+  addEventListener('blur', () => { S.fireHeld = false; });
+
+  /* ---------------- the gun crate: shake, a spinning strip of guns, then the card ---------------- */
+  const RFX = { common: { rays: 0, parts: 10, shake: 0, flash: 0.0 }, uncommon: { rays: 0, parts: 18, shake: 0, flash: 0.25 }, rare: { rays: 1, parts: 26, shake: 0.4, flash: 0.45 }, epic: { rays: 1, parts: 40, shake: 0.8, flash: 0.7 }, legendary: { rays: 2, parts: 60, shake: 1.2, flash: 0.9 }, mythic: { rays: 3, parts: 90, shake: 1.8, flash: 1 } };
+  function crateReveal() {
+    if (S.crate) return; if (S.me.coins < C.CRATE.price) { toast(`A Gun Crate costs ${fmt(C.CRATE.price)} coins. You earn 1,000 a minute.`); SFX.nope(); return; }
+    const back = S.layer; closeLayer();
+    const el = document.createElement('div'); el.className = 'crate-fx';
+    el.innerHTML = `<div class="cr-bg"></div><div class="cr-top"><h2>Gun Crate</h2><p id="cr-sub">Tap the crate to open · ${fmt(C.CRATE.price)} coins</p></div><div class="cr-stage"><canvas id="cr-c"></canvas></div>
+      <div class="cr-strip" id="cr-strip" hidden><div class="cr-track" id="cr-track"></div><i class="cr-mark"></i></div><div class="cr-flash" id="cr-flash"></div><div class="cr-card" id="cr-card" hidden></div><div class="cr-bottom" id="cr-b"><span class="pill coin coins"></span></div>`;
+    document.body.appendChild(el); paintMe();
+    const st = W.stage($('#cr-c')); if (!st) { el.remove(); return; } st.crate();
+    let phase = 'idle', res = null, t0 = 0;
+    S.crate = { result(r) { res = r; }, fail() { finish(); } };
+    const order = C.RARITY.filter(r => r !== 'starter'), pool = C.ITEMS.filter(i => i[1] === 'gun' && i[3] !== 'starter');
+    st.onTick(() => { if (phase !== 'shaking') return; const k = Math.min(1, (performance.now() - t0) / 1300); st.shake(0.5 + k * 2.2); if (k < 1 && Math.random() < 0.08) SFX.tick(); if (res && k >= 1) { phase = 'strip'; spin(); } });
+    $('#cr-c').addEventListener('pointerdown', () => { if (phase !== 'idle') return; phase = 'shaking'; t0 = performance.now(); $('#cr-sub').textContent = 'Opening…'; send({ t: 'crate' }); SFX.click(); });
+    const flash = (col, k) => { const f = $('#cr-flash'); f.style.background = col; f.style.setProperty('--k', k); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); };
+    /* the strip: 44 guns, the prize at 36, slowing to a stop under the marker */
+    function spin() {
+      st.calm(); flash('#fff', 0.9); SFX.pop(); $('#cr-c').style.visibility = 'hidden'; const strip = $('#cr-strip'), track = $('#cr-track'); strip.hidden = false; $('#cr-sub').textContent = '';
+      const W0 = Math.min(150, Math.max(104, innerWidth / 5)), N = 44, WIN = 36, cells = [];
+      for (let i = 0; i < N; i++) { let id; if (i === WIN) id = res.item; else { const r = Math.random() * 100; let acc = 0, rar = 'common'; for (const k of order) { acc += C.CRATE.odds[k]; if (r < acc) { rar = k; break; } } const list = pool.filter(q => q[3] === rar); id = list[Math.floor(Math.random() * list.length)][0]; } cells.push(id); }
+      track.innerHTML = cells.map(id => `<div class="cr-c" style="width:${W0}px;--rc:${C.RCOL[C.BY[id].rarity]};background:${pastel(C.RCOL[C.BY[id].rarity])}"><img data-icon="${id}" alt=""><b>${esc(C.BY[id].name)}</b></div>`).join('');
+      $$('#cr-track img').forEach(im => { im.src = W.itemIcon(im.dataset.icon, 'gun'); });
+      const stripW = strip.clientWidth, jitter = (Math.random() - 0.5) * W0 * 0.6, target = WIN * W0 + W0 / 2 + jitter - stripW / 2, T = 4600, s0 = performance.now(); let lastI = -1;
+      const ease = x => 1 - Math.pow(1 - x, 4);
+      (function step() { const k = Math.min(1, (performance.now() - s0) / T), x = target * ease(k); track.style.transform = `translateX(${-x}px)`; const i = Math.floor((x + stripW / 2) / W0); if (i !== lastI) { lastI = i; SFX.tick(); }
+        if (k < 1) requestAnimationFrame(step); else land(); })();
+    }
+    function land() {
+      phase = 'shown'; const r = res, fx = RFX[r.rarity], col = C.RCOL[r.rarity], d = GUNS.BY[r.item];
+      $$('#cr-track .cr-c')[36].classList.add('win'); SFX.win(); if (r.rarity === 'legendary' || r.rarity === 'mythic') [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'triangle', 0.1), i * 90));
+      setTimeout(() => {
+        flash(r.rarity === 'mythic' ? '#fff' : col, fx.flash); if (fx.shake) { el.style.setProperty('--sh', fx.shake); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+        const dps = Math.round(d.dmg * d.pellets * 1000 / d.ms), bar = (v, mx) => `<i><u style="width:${Math.min(100, v / mx * 100)}%"></u></i>`;
+        const card = $('#cr-card'); card.hidden = false; card.className = `cr-card show r-${r.rarity}`; card.style.setProperty('--rc', col);
+        card.innerHTML = `${fx.rays ? `<div class="rays r${fx.rays}"></div>` : ''}<div class="face"><span class="rar">${C.RNAME[r.rarity]}</span><img src="${W.itemIcon(r.item, 'gun')}" alt=""><h3>${esc(r.name)}</h3>
+          <div class="stats"><div><span>Damage</span>${bar(d.dmg * d.pellets, 90)}<b>${d.dmg}${d.pellets > 1 ? '×' + d.pellets : ''}</b></div><div><span>Speed</span>${bar(1000 / d.ms, 15)}<b>${(1000 / d.ms).toFixed(1)}/s</b></div><div><span>Range</span>${bar(d.range, 90)}<b>${d.range}</b></div></div>
+          <p class="dps">${dps} damage a second${r.equipped ? ' · equipped!' : ''}</p></div>`;
+        const parts = document.createElement('div'); parts.className = 'parts'; card.appendChild(parts);
+        for (let i = 0; i < fx.parts; i++) { const p = document.createElement('i'), a = Math.random() * 6.283, dist = 120 + Math.random() * (160 + fx.parts * 2); p.style.cssText = `--x:${Math.cos(a) * dist}px;--y:${Math.sin(a) * dist - 40}px;--d:${Math.random() * 0.25}s;--s:${6 + Math.random() * 10}px;background:${r.rarity === 'mythic' ? `hsl(${Math.random() * 360},95%,60%)` : Math.random() < 0.3 ? '#fff' : col}`; parts.appendChild(p); }
+        $('#cr-b').innerHTML = `${r.equipped ? '' : '<button class="btn black big" data-cr="equip">Equip</button>'}<button class="btn big" data-cr="again"${S.me.coins >= C.CRATE.price && r.left ? '' : ' disabled'}>Another ${fmt(C.CRATE.price)}</button><button class="btn big" data-cr="done">Done</button><span class="pill coin coins"></span>`; paintMe();
+      }, 450);
+    }
+    const finish = () => { st.stop(); el.remove(); S.crate = null; if (back === 'shop' || back === 'locker') showWardrobe(back); paintGun(); };
+    el.addEventListener('click', e => { const b = e.target.closest('[data-cr]'); if (!b || b.disabled) return; const a = b.dataset.cr; if (a === 'equip') { wear('gun', res.item); b.remove(); } else if (a === 'again') { finish(); crateReveal(); } else finish(); });
   }
 
   /* ---------------- actions ---------------- */
@@ -360,12 +458,15 @@
     rule(v) { const [k, x] = v.split(':'); send({ t: 'rule', k, v: +x }); SFX.click(); },
     stake() { const st = [0, 100, 250, 500], i = st.indexOf(S.party.stake); send({ t: 'stake', n: st[(i + 1) % st.length] }); },
     locker() { showWardrobe('locker'); }, shop() { showWardrobe('shop'); }, close() { closeLayer(); },
-    wtab(v) { wTab = v; S.sel = null; if (S.stage) S.stage.figure(S.me.look, S.me.pet, myCol()); paintWardrobe(); },
+    wtab(v) { wTab = v; S.sel = null; if (S.stage) S.stage.figure(S.me.look, S.me.pet, myCol(), gunFor()); paintWardrobe(); },
     wear(v) { wear(wTab, v); },
     pick(v) { S.sel = v; tryOn(v); SFX.click(); $$('#lk-body .it').forEach(e => e.classList.toggle('on', e.dataset.v === v)); paintBuy(); },
     buy(v) { send({ t: 'buy', item: v }); },
     hair(v) { setLook('hair', v); }, hc(v) { setLook('hc', +v); }, skin(v) { setLook('skin', +v); },
-    col(v) { S.me.col = +v; send({ t: 'equip', col: +v }); if (S.stage) S.stage.figure(S.me.look, S.me.pet, W.PC[+v]); paintWardrobe(); },
+    col(v) { S.me.col = +v; send({ t: 'equip', col: +v }); if (S.stage) S.stage.figure(S.me.look, S.me.pet, W.PC[+v], gunFor()); paintWardrobe(); },
+    admin() { const code = window.prompt('Admin code'); if (code) send({ t: 'admin', code }); },
+    guns() { send({ t: 'guns', on: !S.party.guns }); SFX.click(); },
+    crate() { crateReveal(); },
     daily() { send({ t: 'daily' }); SFX.pop(); }, buybox() { send({ t: 'buybox' }); SFX.click(); }, open() { reveal(); }
   };
   document.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b || b.disabled) return; const a = A[b.dataset.a]; if (a) { e.preventDefault(); ac(); a(b.dataset.v, b); } });
@@ -379,6 +480,7 @@
     if (S.layer && S.layer !== 'results') return;
     const k = e.key.toLowerCase();
     if (k === 'e' && !e.repeat) A.tag();
+    if (k === 'f') { S.fireHeld = true; fire(); }
     if (k === '1') send({ t: 'emote', e: 'wave' }); if (k === '2') send({ t: 'emote', e: 'cheer' }); if (k === '3') send({ t: 'emote', e: 'dance' }); if (k === '4') send({ t: 'emote', e: 'spin' }); if (k === '5') send({ t: 'emote', e: 'bow' }); if (k === '6') send({ t: 'emote', e: 'floss' });
     if (k === 'm' && !e.repeat && W.mode === 'home') A.menu();   /* M opens and closes the home menu; sound is in Settings */
   });
@@ -401,5 +503,5 @@
   W.mode = 'home'; loadSettings();
   const fontsReady = document.fonts ? Promise.race([document.fonts.load('40px "Fredoka Bold"'), new Promise(r => setTimeout(r, 1500))]) : Promise.resolve();
   fontsReady.then(connect);
-  globalThis.FOUND_APP = { S, send, W };   // handy in the console and for tests
+  globalThis.FOUND_APP = { S, send, W, fire };   // handy in the console and for tests
 })();

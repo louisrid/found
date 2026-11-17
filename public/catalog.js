@@ -184,15 +184,35 @@
     ["w_crystaldeer","pet","Crystal deer","mythic"],
     ["w_rainbowfox","pet","Rainbow fox","mythic"],
     ["w_goldpig","pet","Golden pig","mythic"],
+    /* guns (stats and models in guns.js) */
+    ["g_pop","gun","Pop Pistol","starter"],
+    ["g_pea","gun","Pea Shooter","common"],
+    ["g_ketchup","gun","Ketchup Squirt","common"],
+    ["g_slime","gun","Slime Squirter","common"],
+    ["g_zap","gun","Zap SMG","uncommon"],
+    ["g_bubble","gun","Bubble Blaster","uncommon"],
+    ["g_banana","gun","Banana Blaster","uncommon"],
+    ["g_taco","gun","Taco Cannon","rare"],
+    ["g_lava","gun","Lava Laser","rare"],
+    ["g_pizza","gun","Pizza Piercer","rare"],
+    ["g_rail","gun","Rainbow Railgun","epic"],
+    ["g_cactus","gun","Cactus Shotgun","epic"],
+    ["g_disco","gun","Disco Minigun","epic"],
+    ["g_dragon","gun","Dragon Breath","legendary"],
+    ["g_galaxy","gun","Galaxy Cannon","legendary"],
+    ["g_duck","gun","Rubber Duck Doomsday","mythic"],
+    ["g_cosmic","gun","Cosmic Chaos Cannon","mythic"],
   ];
-  const RARITY = ['starter', 'common', 'rare', 'epic', 'legendary', 'mythic'];
-  const RCOL = { starter: '#0b0b0f', common: '#6b6b76', rare: '#2f5bff', epic: '#7a3cff', legendary: '#ff8a00', mythic: '#ff2d55' };
-  const RNAME = { starter: 'Starter', common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', mythic: 'Mythic' };
+  const RARITY = ['starter', 'common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+  const RCOL = { starter: '#0b0b0f', common: '#6b6b76', uncommon: '#1fa34a', rare: '#2f5bff', epic: '#7a3cff', legendary: '#ff8a00', mythic: '#ff2d55' };
+  const RNAME = { starter: 'Starter', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', mythic: 'Mythic' };
   const BY = {}; ITEMS.forEach(r => { BY[r[0]] = { id: r[0], slot: r[1], name: r[2], rarity: r[3] }; });
   const STARTER = ITEMS.filter(r => r[3] === 'starter').map(r => r[0]);
   /* the shop: one fixed price per rarity */
-  const PRICE = { starter: 0, common: 300, rare: 800, epic: 2000, legendary: 5000, mythic: 12000 };
+  const PRICE = { starter: 0, common: 300, uncommon: 500, rare: 800, epic: 2000, legendary: 5000, mythic: 12000 };
   /* the mystery box: one kind, one price, a random item you don't own (odds in percent) */
   const BOX = { name: 'Mystery Box', price: 600, odds: { common: 60, rare: 28, epic: 9, legendary: 2.5, mythic: 0.5 } };
-  root.FOUND_CATALOG = Object.freeze({ ITEMS, BY, RARITY, RCOL, RNAME, STARTER, PRICE, BOX });
+  /* the gun crate: 500 coins for a random gun you don't own (odds in percent). Players earn 1,000 coins a minute, so a crate is half a minute away */
+  const CRATE = { name: 'Gun Crate', price: 500, odds: { common: 36, uncommon: 28, rare: 20, epic: 10, legendary: 4.5, mythic: 1.5 } };
+  root.FOUND_CATALOG = Object.freeze({ ITEMS, BY, RARITY, RCOL, RNAME, STARTER, PRICE, BOX, CRATE });
 })(globalThis);

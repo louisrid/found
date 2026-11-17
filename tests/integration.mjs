@@ -12,7 +12,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'found-it-')), DATA = path.joi
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let srv = null;
 async function start() {
-  srv = spawn(process.execPath, ['server.js'], { cwd: ROOT, env: Object.assign({}, process.env, { PORT: String(PORT), DATA_FILE: DATA, FOUND_TEST_FAST: '1', DATABASE_URL: '' }), stdio: ['ignore', 'pipe', 'pipe'] });
+  srv = spawn(process.execPath, ['server.js'], { cwd: ROOT, env: Object.assign({}, process.env, { PORT: String(PORT), DATA_FILE: DATA, FOUND_TEST_FAST: '1', DATABASE_URL: '', ADMIN_CODE: 'test-admin-code' }), stdio: ['ignore', 'pipe', 'pipe'] });
   srv.stderr.on('data', d => process.stderr.write('[server] ' + d));
   for (let i = 0; i < 150; i++) { try { const r = await fetch(`http://localhost:${PORT}/api/ping`); if (r.ok) return; } catch (e) {} await sleep(100); }
   throw new Error('server did not start');
@@ -76,7 +76,14 @@ try {
   const code = A.party.code; B.close(); await sleep(200);
   const B2 = new Client('B2'); B2.id = B.id; B2.key = B.key; await B2.open(code); assert.equal((await B2.wait(m => m.t === 'party')).code, code); ok('rejoins the party after a reconnect');
   const evil = new Client('evil'); evil.id = A.id; await evil.open(); await evil.wait(m => m.t === 'authfail', 3000); evil.close(); ok('a wrong key is refused');
-  const coins = A.me.coins; A.close(); B2.close(); await sleep(1800); await stop(); await start();
+  /* guns: only the admin switches them on; shots, hits and the crate go through the server */
+  { A.fresh(); A.send({ t: 'admin', code: 'wrong' }); assert.match((await A.wait(m => m.t === 'err', 3000, 'bad admin')).m, /Wrong admin code/);
+    B2.fresh(); B2.send({ t: 'guns', on: true }); assert.match((await B2.wait(m => m.t === 'err', 3000, 'not admin')).m, /Only the admin/); ok('guns and the admin code are guarded on the server');
+    A.fresh(); A.send({ t: 'admin', code: 'test-admin-code' }); await A.wait(m => m.t === 'me' && m.me.admin, 3000, 'admin me'); A.send({ t: 'guns', on: true }); await A.wait(m => m.t === 'party' && m.guns, 3000, 'guns on'); ok('the admin switches guns on for the party');
+    await walk(A, 0, 0); await walk(B2, 0, 12); A.fresh(); B2.fresh(); A.send({ t: 'shoot', ry: 0 }); const hit = await B2.wait(m => m.t === 'hit', 3000, 'hit'); assert.equal(hit.hp, 86); assert.ok((await A.wait(m => m.t === 'shot', 3000)).e.length >= 1); ok('a shot reaches everyone and damages the target');
+    A.fresh(); A.send({ t: 'crate' }); const cr = await Promise.race([A.wait(m => m.t === 'crated', 3000, 'crate').catch(() => null), A.wait(m => m.t === 'err', 3000, 'crate err').catch(() => null)]);
+    if (cr && cr.t === 'crated') { assert.equal(cr.r.slot, 'gun'); ok('a gun crate opens and gives a gun'); } else { assert.match(cr.m, /Not enough/); ok('a gun crate needs 500 coins'); } }
+  await sleep(250); const coins = A.me.coins; A.close(); B2.close(); await sleep(1800); await stop(); await start();
   const A2 = new Client('A2'); A2.id = A.id; A2.key = A.key; await A2.open(); await A2.wait(m => m.t === 'me'); assert.equal(A2.me.coins, coins); A2.close(); ok('profiles survive a restart');
   console.log(`\n${n} integration checks passed`);
 } catch (e) { console.error(e); process.exitCode = 1; }

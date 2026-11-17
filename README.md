@@ -113,6 +113,10 @@ up/down, camera distance, field of view and sound. Saved in that browser.
 
 Nothing is sold for real money.
 
+## Guns, health and Gun Crates
+The lobby is an open lawn. The admin (`ADMIN_CODE` env var on the server, entered once in the game's **Admin** button) switches **Guns** on for the party. While guns are on: 100 HP, health bars over every player, hold F / the FIRE button / right-click to shoot (hitscan, server-checked, auto-aim to whoever is in front, with a ground aim line), 150 coins a kill, respawn after 3 s with a 2 s shield. Shots only count in the lobby, never during a round.
+Income: every connected player earns **1,000 coins a minute** (`CFG.payCoins` 100 every 6 s). A **Gun Crate** is 500 coins and gives a random gun you don't own, with a shake, a spinning strip and a rarity card (more effects each tier up to Mythic). 17 guns in `public/guns.js` (stats and voxel models); shop rows in `catalog.js`. Uncommon is a new rarity (500 coins in the shop).
+
 ## What came from BITZ
 
 - `public/avatar.js`: the BITZ voxel avatar renderer, unchanged apart from its global name and pet outlines.

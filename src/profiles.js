@@ -3,7 +3,8 @@
 import crypto from 'node:crypto';
 import '../public/catalog.js';
 import '../public/avatar-data.js';
-const C = globalThis.FOUND_CATALOG, D = globalThis.FOUND_AVATAR_DATA;
+import '../public/guns.js';
+const C = globalThis.FOUND_CATALOG, D = globalThis.FOUND_AVATAR_DATA, G = globalThis.FOUND_GUNS;
 
 export const hashKey = k => crypto.createHash('sha256').update('found:' + String(k)).digest('hex');
 export const today = now => new Date(now).toISOString().slice(0, 10);
@@ -22,8 +23,8 @@ export function newProfile(id, key, now, rnd = Math.random) {
     pet: '', col: Math.floor(rnd() * 8), season: SEASON, idleAt: now, coins: 300, own: [], boxes: 1, daily: { last: '' }, stats: { games: 0, wins: 0, finds: 0 } };
 }
 export const owns = (p, id) => !id || C.STARTER.includes(id) || (p.own || []).includes(id);
-export function publicOf(p) { return { id: p.id, name: p.name, look: p.look, pet: p.pet, col: p.col }; }
-export function privateOf(p, now) { fix(p); return { id: p.id, name: p.name, look: p.look, pet: p.pet, col: p.col, coins: p.coins, own: p.own, boxes: p.boxes, stats: p.stats, daily: p.daily.last !== today(now),
+export function publicOf(p) { return { id: p.id, name: p.name, look: p.look, pet: p.pet, col: p.col, gun: p.gun || G.START }; }
+export function privateOf(p, now) { fix(p); return { id: p.id, name: p.name, look: p.look, pet: p.pet, col: p.col, gun: p.gun || G.START, admin: !!p.admin, coins: p.coins, own: p.own, boxes: p.boxes, stats: p.stats, daily: p.daily.last !== today(now),
   idle: idleOf(p, now), idleRate: idleRate(p), spin: p.daily.spin !== today(now), miniLeft: miniLeft(p, now) }; }
 
 /* change looks: only owned items, real hairstyles and colours */
@@ -37,6 +38,7 @@ export function equip(p, b) {
     else if (C.BY[id] && C.BY[id].slot === slot && owns(p, id)) out[slot] = id;
   }
   if (typeof b.pet === 'string' && (b.pet === '' || (C.BY[b.pet] && C.BY[b.pet].slot === 'pet' && owns(p, b.pet)))) p.pet = b.pet;
+  if (typeof b.gun === 'string' && C.BY[b.gun] && C.BY[b.gun].slot === 'gun' && owns(p, b.gun)) p.gun = b.gun;
   if (Number.isInteger(b.col) && b.col >= 0 && b.col < 8) p.col = b.col;
   if (typeof b.name === 'string') { const n = cleanName(b.name); if (n.length >= 2) p.name = n; }
   p.look = out; return p;
@@ -54,11 +56,23 @@ export function openBox(p, rnd = Math.random) {
   fix(p); if (!p.boxes) throw new Error('No Mystery Box to open.');
   p.boxes--; const order = ['common', 'rare', 'epic', 'legendary', 'mythic'];
   let r = rnd() * 100, at = 0; for (let i = 0; i < order.length; i++) { at = i; const o = C.BOX.odds[order[i]]; if (r < o) break; r -= o; }
-  const pool = k => C.ITEMS.filter(i => i[3] === order[k] && !owns(p, i[0]));
+  const pool = k => C.ITEMS.filter(i => i[3] === order[k] && i[1] !== 'gun' && !owns(p, i[0]));
   let list = []; for (let d = 0; d < order.length && !list.length; d++) for (const k of [at - d, at + d]) if (k >= 0 && k < order.length && !list.length) list = pool(k);
   if (!list.length) { p.coins += C.BOX.price; return { coins: C.BOX.price }; }   // you own everything: your coins back
   const it = list[Math.floor(rnd() * list.length)]; p.own.push(it[0]);
   return { item: it[0], slot: it[1], name: it[2], rarity: it[3] };
+}
+/* the gun crate: costs coins, gives a random gun you don't own (the nearest rarity that still has one) and equips it if it beats the one in your hand */
+export function openCrate(p, rnd = Math.random) {
+  fix(p); if (p.coins < C.CRATE.price) throw new Error('Not enough coins.');
+  const order = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'], pool = k => C.ITEMS.filter(i => i[1] === 'gun' && i[3] === order[k] && !owns(p, i[0]));
+  if (!order.some((_, k) => pool(k).length)) throw new Error('You own every gun!');
+  p.coins -= C.CRATE.price;
+  let r = rnd() * 100, at = 0; for (let i = 0; i < order.length; i++) { at = i; const o = C.CRATE.odds[order[i]]; if (r < o) break; r -= o; }
+  let list = []; for (let d = 0; d < order.length && !list.length; d++) for (const k of [at - d, at + d]) if (k >= 0 && k < order.length && !list.length) list = pool(k);
+  const it = list[Math.floor(rnd() * list.length)]; p.own.push(it[0]);
+  const rank = id => C.RARITY.indexOf(C.BY[id].rarity), equipped = rank(it[0]) > rank(p.gun || G.START); if (equipped) p.gun = it[0];
+  return { item: it[0], slot: 'gun', name: it[2], rarity: it[3], equipped, left: order.reduce((n, _, k) => n + pool(k).length, 0) };
 }
 /* one free Mystery Box a day (UTC) */
 export function claimDaily(p, now) { fix(p); if (p.daily.last === today(now)) throw new Error('Come back tomorrow.'); p.daily.last = today(now); p.boxes++; }

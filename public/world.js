@@ -1,5 +1,4 @@
-/* FOUND world: a white grid plain with soft shadows, the lobby (giant voxel letters, ready ring, the collection on
-   plinths) and the house (low cutaway walls, furniture, fenced garden). You, your friends and their pets, the hidden
+/* FOUND world: a lawn with soft shadows, the lobby (a ready ring, guns) and the house (low cutaway walls, furniture, fenced garden). You, your friends and their pets, the hidden
    objects and gift boxes. High third-person camera, WASD / arrows / tap-to-walk, drag to orbit, wheel to zoom.
    Static scenery is baked into a few vertex-coloured meshes so the whole house is a handful of draw calls. */
 (function () {
@@ -106,39 +105,24 @@
   W.objModel = objModel;
 
   /* ---------------- building the lobby ---------------- */
-  const FONT = { F: ['11111', '10000', '10000', '11110', '10000', '10000', '10000'], O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'], U: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'], N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'], D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'] };
-  let ringMesh, ringFill, ringText, plinthItems = [];
+  let ringMesh, ringFill, ringText;
   function buildLobby() {
     const L = LAY.lobby, g = new THREE.Group(); groups.lobby = g; scene.add(g);
-    /* the plaza: pale pixel tiles in a circle, a chunky dark kerb, grass beyond */
-    const PR = L.bounds.r + 3, pm = new THREE.MeshLambertMaterial({ color: 0xf6f4ee }); pm.userData.cell = [6, 3, 3]; pm.userData.edge = false;
-    const plaza = new THREE.Mesh(new THREE.CircleGeometry(PR, 96), pm); plaza.rotation.x = -Math.PI / 2; plaza.position.y = 0.02; plaza.receiveShadow = true; g.add(plaza);
-    const kerb = new THREE.Mesh(new THREE.CylinderGeometry(PR + 0.9, PR + 0.9, 0.3, 96, 1, true), new THREE.MeshLambertMaterial({ color: 0x2a2733, side: THREE.DoubleSide })); kerb.position.y = 0.15; g.add(kerb);
-    const kerbTop = new THREE.Mesh(new THREE.RingGeometry(PR, PR + 0.9, 96), new THREE.MeshLambertMaterial({ color: 0x3a3742 })); kerbTop.rotation.x = -Math.PI / 2; kerbTop.position.y = 0.3; kerbTop.receiveShadow = true; g.add(kerbTop);
-    /* giant voxel letters, each bobbing a little out of step */
-    const s = 1.1, word = 'FOUND';
-    word.split('').forEach((ch, li) => {
-      const b = new Batch(), rows = FONT[ch];
-      rows.forEach((row, r) => row.split('').forEach((px, c) => { if (px === '1') b.box(s * 0.98, s * 0.98, s * 1.2, li === 1 ? '#0b0b0f' : '#0b0b0f', (c - 2) * s, (6 - r) * s + s / 2, 0, 0.05); }));
-      if (ch === 'O') { /* the lens: a little cube inside and a handle, like the logo */
-        b.box(s * 0.9, s * 0.9, s * 0.9, '#ffffff', 0, 3 * s + s / 2, 0, 0.05);
-        b.box(s * 0.9, s * 0.9, s * 1.1, '#0b0b0f', -2.95, 0.98, 0, 0.05); b.box(s * 0.9, s * 0.9, s * 1.1, '#0b0b0f', -3.75, 0.45, 0, 0.05);
-      }
-      const lg = b.build(); const x = (li - 2) * 6 * s; lg.position.set(x, 0, L.word.z); g.add(lg);
-      anim.push({ fn: t => { if (W.map !== 'lobby') return; lg.position.y = W.reduced ? 0 : Math.max(0, Math.sin(t * 1.6 - li * 0.6)) * 0.35; } });
-    });
+    /* the lawn: pixel grass, with little tufts and flowers. Nothing else stands here. */
+    const PR = L.bounds.r + 3, lawn = texPlane(PR * 2, PR * 2, 'grass', '#ffffff', '#d8d8d8', 0, 0.02, 0); lawn.geometry = new THREE.CircleGeometry(PR, 96); lawn.material.color.set('#34e052'); g.add(lawn);
+    const tb = new Batch(), rnd = seeded(777), greens = ['#22b83a', '#2fd84a', '#4be36a'], petals = ['#ffffff', '#ffd60a', '#ff8ad8', '#ff4b3e', '#7ad8ff'];
+    for (let i = 0; i < 260; i++) {
+      const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * (PR - 2), x = Math.sin(a) * r, z = Math.cos(a) * r;
+      if (Math.hypot(x - L.ring.x, z - L.ring.z) < L.ring.r + 1.2) continue;
+      if (rnd() < 0.12) { tb.box(0.08, 0.34, 0.08, '#16a83a', x, 0.17, z, 0); tb.box(0.26, 0.16, 0.26, petals[(rnd() * petals.length) | 0], x, 0.42, z, 0.02); continue; }
+      const col = greens[(rnd() * greens.length) | 0], h = 0.26 + rnd() * 0.22; tb.box(0.12, h, 0.12, col, x, h / 2, z, 0); tb.box(0.12, h * 0.7, 0.12, col, x + 0.16, h * 0.35, z + 0.06, 0); tb.box(0.12, h * 0.85, 0.12, shade(col, 1.15), x - 0.1, h * 0.42, z + 0.14, 0);
+    }
+    g.add(tb.build({ shadow: false }));
     /* ready ring */
     ringMesh = new THREE.Mesh(new THREE.RingGeometry(L.ring.r - 0.35, L.ring.r, 72), new THREE.MeshBasicMaterial({ color: K })); ringMesh.rotation.x = -Math.PI / 2; ringMesh.position.set(L.ring.x, 0.06, L.ring.z); g.add(ringMesh);
     ringFill = new THREE.Mesh(new THREE.CircleGeometry(L.ring.r - 0.35, 72), new THREE.MeshBasicMaterial({ color: K, transparent: true, opacity: 0.06 })); ringFill.rotation.x = -Math.PI / 2; ringFill.position.set(L.ring.x, 0.05, L.ring.z); g.add(ringFill);
     ringText = textPlane('READY', 5.2, 1.3, { alpha: 0.9 }); ringText.position.set(L.ring.x, 0.07, L.ring.z); g.add(ringText);
-    const hint = textPlane('STAND HERE TO START', 7, 0.7, { alpha: 0.35 }); hint.position.set(L.ring.x, 0.07, L.ring.z + L.ring.r + 0.9); g.add(hint);
     anim.push({ fn: t => { if (W.map !== 'lobby') return; const k = W.ringK || 0; ringFill.material.opacity = 0.06 + k * 0.5 + (W.ring ? Math.sin(t * 5) * 0.03 + 0.05 : 0); ringFill.scale.setScalar(1); } });
-    /* the collection: every hunt object on a white plinth */
-    const pb = new Batch();
-    L.plinths.forEach(p => { pb.box(1.7, 1.0, 1.7, '#ffffff', p.x, 0.5, p.z, 0.06, p.ry); const m = objModel(p.id); m.position.set(p.x, 1.0, p.z); m.rotation.y = p.ry; g.add(m); plinthItems.push({ m, p, ry: p.ry, lab: null }); });
-    g.add(pb.build());
-    anim.push({ fn: (t, dt) => { if (W.map !== 'lobby') return; const me = W.me; plinthItems.forEach((q, i) => { q.m.rotation.y = q.ry + (W.reduced ? 0 : Math.sin(t * 0.8 + i) * 0.5);
-      const near = me && Math.hypot(me.x - q.p.x, me.z - q.p.z) < 4; if (near && !q.lab) { q.lab = label(OBJ.BY[q.p.id].name, { w: 3.2, size: 44 }); q.lab.position.set(q.p.x, 3.1, q.p.z); g.add(q.lab); } if (q.lab) q.lab.visible = near; }); } });
   }
 
   /* ---------------- building the house ---------------- */
@@ -415,13 +399,109 @@
       g.userData.av = { userData: { M: new THREE.Object3D(), emote() {}, anim(t, dt, o) { model.position.y = o.moving ? Math.abs(Math.sin(t * 12)) * 0.1 : 0; } } };
       g.userData.tag = new THREE.Sprite(new THREE.SpriteMaterial({ visible: false })); scene.add(g); return g;
     }
-    const av = AV.make(THREE, info.look, col); g.add(av); g.userData.av = av;
+    const av = AV.make(THREE, info.look, col); g.add(av); g.userData.av = av; if (info.gun) attachGun(av, info.gun);
     if (info.pet) { const pt = AV.pet(THREE, info.pet); pt.position.set(1.4, 0, -1.2); g.add(pt); g.userData.pet = pt; }
     const tag = label(info.name || 'Player', { dot: col, w: 3.6 }); tag.position.y = 4.6; g.add(tag); g.userData.tag = tag;
+    const bar = healthBar(); bar.position.y = 5.5; g.add(bar); g.userData.bar = bar;
     const blob = new THREE.Mesh(new THREE.CircleGeometry(0.85, 24), new THREE.MeshBasicMaterial({ color: K, transparent: true, opacity: 0.08, depthWrite: false })); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.02; g.add(blob);
     scene.add(g); return g;
   }
-  const lookKey = i => JSON.stringify([i.look, i.pet, i.col, i.name, i.asProp || 0]);
+  const lookKey = i => JSON.stringify([i.look, i.pet, i.col, i.name, i.asProp || 0, i.gun || '']);
+
+  /* ---------------- guns: held models, health bars, shots ---------------- */
+  const GUNS = globalThis.FOUND_GUNS;
+  /* a gun: its plain boxes, plus the rainbow ones on a material of their own whose colour cycles */
+  function gunModel(id) {
+    const d = GUNS.BY[id] || GUNS.BY[GUNS.START], plain = d.spec.filter(q => q[7] !== 'r'), rain = d.spec.filter(q => q[7] === 'r').map(q => [q[0], q[1], q[2], '#ffffff', q[4], q[5], q[6]]);
+    const g = new THREE.Group(); g.add(specGroup(plain, 1, 0.02)); let rb = null;
+    if (rain.length) { rb = specGroup(rain, 1, 0.02); if (rb.userData.body) rb.userData.body.material = VC.clone(); g.add(rb); }
+    g.userData = { d, mz: d.mz, tick(t) { if (rb && rb.userData.body) rb.userData.body.material.color.setHSL((t * 0.6) % 1, 0.9, 0.62); } };
+    return g;
+  }
+  W.gunModel = gunModel;
+  /* in the right hand, barrel out along the arm */
+  function attachGun(av, id) {
+    const hand = av.userData.hand; if (!hand) return null; const m = gunModel(id), h = new THREE.Group(); h.position.set(0, -0.47, 0); h.rotation.x = Math.PI / 2; h.add(m); hand.add(h); av.userData.gun = m; return m;
+  }
+  W.attachGun = attachGun;
+  function healthBar() {
+    const c = document.createElement('canvas'); c.width = 160; c.height = 28; const x = c.getContext('2d'), tex = new THREE.CanvasTexture(c);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, depthTest: false, transparent: true })); sp.scale.set(2.6, 0.46, 1); sp.renderOrder = 11; sp.visible = false;
+    sp.userData.draw = hp => { sp.userData.hp = hp; const k = Math.max(0, Math.min(1, hp / GUNS.HP)); x.clearRect(0, 0, 160, 28); x.fillStyle = '#0b0b0f'; rr(x, 2, 2, 156, 24, 12); x.fill(); x.fillStyle = '#ffffff'; rr(x, 6, 6, 148, 16, 8); x.fill();
+      if (k > 0) { x.fillStyle = k > 0.5 ? '#2fd84a' : k > 0.25 ? '#ffc61a' : '#ff3b30'; rr(x, 6, 6, Math.max(14, 148 * k), 16, 8); x.fill(); } tex.needsUpdate = true; };
+    sp.userData.hp = -1; return sp;
+  }
+  W.gunsOn = false;
+  W.setHp = (id, hp) => { const o = W.me && W.me.id === id ? W.me : W.others.get(id); if (o) o.hp = hp; };
+  /* small bursts, beams and floating numbers: each is a short-lived animation */
+  const fxGeo = () => fxGeo.g || (fxGeo.g = new THREE.BoxGeometry(1, 1, 1));
+  function burst(x, y, z, color, n, speed, life) {
+    const parts = []; for (let i = 0; i < n; i++) { const m = new THREE.Mesh(fxGeo(), new THREE.MeshBasicMaterial({ color, transparent: true })); const s = 0.14 + Math.random() * 0.18; m.scale.set(s, s, s); m.position.set(x, y, z); scene.add(m);
+      const a = Math.random() * 6.283, u = 0.3 + Math.random() * 0.7; parts.push({ m, vx: Math.cos(a) * speed * u, vy: speed * (0.4 + Math.random() * 0.9), vz: Math.sin(a) * speed * u }); }
+    const t0 = performance.now(); anim.push({ once: true, fn: () => { const k = (performance.now() - t0) / life, dt = 0.016; if (k >= 1) { parts.forEach(q => { scene.remove(q.m); q.m.material.dispose(); }); return true; }
+      parts.forEach(q => { q.vy -= 22 * dt; q.m.position.x += q.vx * dt; q.m.position.y = Math.max(0.1, q.m.position.y + q.vy * dt); q.m.position.z += q.vz * dt; q.m.material.opacity = 1 - k * k; }); } });
+  }
+  function beam(a, b, d, seed) {
+    const col = d.col === 'rainbow' ? new THREE.Color().setHSL(seed % 1, 0.9, 0.6) : new THREE.Color(d.col), len = a.distanceTo(b), w = d.dmg >= 50 ? 0.34 : d.pellets > 1 ? 0.1 : 0.2;
+    const m = new THREE.Mesh(fxGeo(), new THREE.MeshBasicMaterial({ color: col, transparent: true })); m.position.copy(a).lerp(b, 0.5); m.scale.set(w, w, len); m.lookAt(b); scene.add(m);
+    const t0 = performance.now(), life = d.dmg >= 50 ? 260 : 150; anim.push({ once: true, fn: () => { const k = (performance.now() - t0) / life; if (k >= 1) { scene.remove(m); m.material.dispose(); return true; } m.scale.x = m.scale.y = w * (1 - k); m.material.opacity = 1 - k; } });
+  }
+  function flare(p, size, color) {
+    const m = new THREE.Mesh(fxGeo(), new THREE.MeshBasicMaterial({ color, transparent: true })); m.position.copy(p); scene.add(m); const t0 = performance.now(); anim.push({ once: true, fn: () => { const k = (performance.now() - t0) / 110; if (k >= 1) { scene.remove(m); m.material.dispose(); return true; } const s = size * (0.5 + k); m.scale.set(s, s, s); m.rotation.set(k * 3, k * 4, 0); m.material.opacity = 1 - k; } });
+  }
+  const floatCache = new Map();
+  function floatText(x, y, z, text, color) {
+    const key = text + color; let tex = floatCache.get(key);
+    if (!tex) { const c = document.createElement('canvas'); c.width = 160; c.height = 80; const g = c.getContext('2d'); g.font = '64px "Fredoka Bold", system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 12; g.strokeStyle = '#0b0b0f'; g.lineJoin = 'round'; g.strokeText(text, 80, 42); g.fillStyle = color; g.fillText(text, 80, 42); tex = new THREE.CanvasTexture(c); floatCache.set(key, tex); }
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true })); sp.scale.set(2.4, 1.2, 1); sp.position.set(x, y, z); sp.renderOrder = 12; scene.add(sp);
+    const t0 = performance.now(); anim.push({ once: true, fn: () => { const k = (performance.now() - t0) / 800; if (k >= 1) { scene.remove(sp); sp.material.dispose(); return true; } sp.position.y = y + k * 2; sp.material.opacity = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4; } });
+  }
+  W.float = floatText;
+  const whoIs = id => W.me && W.me.id === id ? W.me : W.others.get(id);
+  /* a shot: tracer from the muzzle to wherever it ended, a flash, a kick of the arm, sparks where it hit */
+  W.shot = function (m) {
+    const o = whoIs(m.id); if (!o || !o.g) return; const d = GUNS.BY[m.g] || GUNS.BY[GUNS.START], av = o.g.userData.av;
+    if (o !== W.me) { o.try = m.ry; o.ry = m.ry; }
+    if (av && av.userData) av.userData.recoil = 0.5 + (d.dmg >= 50 ? 0.4 : 0);
+    const from = new THREE.Vector3(), gm = av && av.userData.gun;
+    if (gm) { gm.updateWorldMatrix(true, false); gm.localToWorld(from.set(0, 0.05, d.mz)); } else from.set(o.x + Math.sin(m.ry) * 1.4, o.y + 2.3, o.z + Math.cos(m.ry) * 1.4);
+    const t = performance.now() / 300; flare(from, d.dmg >= 50 ? 0.9 : 0.5, d.col === 'rainbow' ? '#ffffff' : d.col);
+    m.e.forEach((r, i) => { const end = new THREE.Vector3(r[0], o.y + 2.3, r[1]); beam(from, end, d, t + i * 0.31); if (r[2]) burst(r[0], o.y + 2.3, r[1], d.col === 'rainbow' ? '#ff7ad9' : d.col, 5, 5, 420); });
+  };
+  W.hit = function (m) { const o = whoIs(m.id); if (!o) return; o.hp = m.hp; floatText(o.x, o.y + 6, o.z, String(m.dmg), '#ffffff'); burst(o.x, o.y + 2.4, o.z, '#ff3b30', 4, 6, 380); };
+  W.killed = function (id) { const o = whoIs(id); if (!o) return; o.dead = true; o.hp = 0; const c = o.info && W.PC ? W.PC[(o.info.col || 0) % W.PC.length] : '#ffffff'; burst(o.x, o.y + 2.2, o.z, c, 16, 9, 800); burst(o.x, o.y + 2.2, o.z, '#ffffff', 8, 7, 600); };
+  W.spawned = function (id) { const o = whoIs(id); if (!o) return; o.dead = false; o.hp = GUNS.HP; burst(o.x, 0.4, o.z, '#7ad8ff', 12, 6, 700); };
+  W.setDead = (id, dead) => { const o = whoIs(id); if (o) o.dead = dead; };
+  W.clearDead = () => { if (W.me) W.me.dead = false; W.others.forEach(o => { o.dead = false; }); };
+  /* the nearest player in front of you, if any: shots turn to them (there is no crosshair) */
+  W.aimAt = function (range) {
+    const m = W.me; if (!m) return 0; let best = null, bd = 1e9;
+    for (const o of W.others.values()) { if (o.dead || !o.info || o.info.ghost) continue; const dx = o.x - m.x, dz = o.z - m.z, dist = Math.hypot(dx, dz); if (dist > range || dist < 0.5) continue;
+      const a = Math.atan2(dx, dz), diff = Math.abs(Math.atan2(Math.sin(a - m.ry), Math.cos(a - m.ry))); if (diff < 0.9 && dist < bd) { bd = dist; best = a; } }
+    return best == null ? m.ry : best;
+  };
+  /* an aim guide on the ground: a line out in front of you, and a red ring on whoever the shot will lock to */
+  let guide = null, lockRing = null;
+  anim.push({ fn: t => {
+    if (!guide) { guide = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 1), new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.38, depthWrite: false, side: THREE.DoubleSide })); guide.rotation.order = 'YXZ'; guide.renderOrder = 2; scene.add(guide);
+      lockRing = new THREE.Mesh(new THREE.RingGeometry(1.5, 2.0, 32), new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide })); lockRing.rotation.x = -Math.PI / 2; lockRing.renderOrder = 2; scene.add(lockRing); }
+    const m = W.me, on = W.gunsOn && W.map === 'lobby' && m && !m.dead && !W.frozen;
+    guide.visible = !!on; if (!on) { lockRing.visible = false; return; }
+    const d = GUNS.BY[(m.info && m.info.gun) || GUNS.START] || GUNS.BY[GUNS.START], a = W.aimAt(d.range), locked = Math.abs(Math.atan2(Math.sin(a - m.ry), Math.cos(a - m.ry))) > 0.001;
+    const len = Math.min(d.range, 16); guide.rotation.set(Math.PI / 2, a, 0); guide.scale.set(1, len, 1);
+    /* the plane lies along +y in its own space: after laying it flat, move it so it starts at your feet and runs forward */
+    guide.position.set(m.x + Math.sin(a) * (len / 2 + 1.2), 0.1 + m.y, m.z + Math.cos(a) * (len / 2 + 1.2)); guide.material.color.set(locked ? 0xff3b30 : 0xffffff);
+    lockRing.visible = locked; if (locked) { let best = null, bd = 1e9; for (const o of W.others.values()) { if (o.dead) continue; const dx = o.x - m.x, dz = o.z - m.z, dist = Math.hypot(dx, dz), ang = Math.atan2(dx, dz); if (Math.abs(Math.atan2(Math.sin(ang - a), Math.cos(ang - a))) < 0.02 && dist < bd) { bd = dist; best = o; } }
+      if (best) { lockRing.position.set(best.x, 0.12 + best.y, best.z); const k = 1 + Math.sin(t * 9) * 0.12; lockRing.scale.set(k, k, k); } else lockRing.visible = false; }
+  } });
+  /* each frame: bars on while guns are on, a dead player is hidden, rainbow guns shimmer */
+  anim.push({ fn: t => {
+    const on = W.gunsOn && W.map === 'lobby';
+    const each = o => { const g = o.g; if (!g || !g.userData.bar) return; const b = g.userData.bar, hp = o.hp == null ? GUNS.HP : o.hp; b.visible = on && !o.dead; if (b.userData.hp !== hp) b.userData.draw(hp);
+      if (on && o.dead) g.visible = false; else if (o.dead === false && on) g.visible = !(o.info && o.info.ghost);
+      const gm = g.userData.av && g.userData.av.userData.gun; if (gm) gm.userData.tick(t); };
+    if (W.me) each(W.me); W.others.forEach(each);
+  } });
   W.setMe = function (info) {
     if (W.me && W.me.key === lookKey(info)) return;
     const prev = W.me; if (prev) scene.remove(prev.g);
@@ -571,7 +651,7 @@
         for (let i = 0; i < n; i++) { const c = LAY.collide(map, m.x + fx2 * step / n, m.z + fz2 * step / n, 0.6, m.x, m.z, m.y); m.x = c[0]; m.z = c[1]; }
         if (len <= 0.08) { const want = Math.atan2(fx2, fz2); m.ry += Math.atan2(Math.sin(want - m.ry), Math.cos(want - m.ry)) * Math.min(1, dt * 10); yaw = m.ry; }
       }
-      if (len > 0.08 || !m.path) m.ry += Math.atan2(Math.sin(yaw - m.ry), Math.cos(yaw - m.ry)) * Math.min(1, dt * 16);
+      if ((len > 0.08 || !m.path) && !(W.aimHold > now)) m.ry += Math.atan2(Math.sin(yaw - m.ry), Math.cos(yaw - m.ry)) * Math.min(1, dt * 16);
       m.moving = moving; m.running = moving && (K2.shift || sp > 38.4);
       /* standing on furniture: step up onto low things, fall when you walk off an edge, land on whatever is under you */
       const gnd = map ? LAY.groundAt(map, m.x, m.z, m.y) : 0;
@@ -579,7 +659,7 @@
       if (!m.grounded || m.vy) { m.vy -= 26 * dt; m.y += m.vy * dt; if (m.y <= gnd) { m.y = gnd; m.vy = 0; if (!m.grounded) { m.grounded = true; m.g.userData.av.userData.M.scale.set(2.2, 1.75, 2.2); } } }
       const Ms = m.g.userData.av.userData.M.scale; Ms.x += (2 - Ms.x) * 0.2; Ms.y += (2 - Ms.y) * 0.2; Ms.z += (2 - Ms.z) * 0.2;
       m.g.position.set(m.x, m.y + (W.restless && W.role === 'hider' ? twitch(t, m.x) : 0), m.z); m.g.rotation.y = m.ry; m.g.userData.tag.visible = W.map === 'lobby';
-      m.g.userData.av.userData.anim(t, dt, { moving, running: m.running, speed: m.running ? 2.8 : 2.4, jumping: !m.grounded });
+      m.g.userData.av.userData.anim(t, dt, { moving, running: m.running, speed: m.running ? 2.8 : 2.4, jumping: !m.grounded, aim: !!m.info.gun });
       if (m.g.userData.pet) petFollow(m.g, m, t, dt, moving);
       /* lobby: the ready ring */
       if (W.map === 'lobby') { const R = LAY.lobby.ring, inside = Math.hypot(m.x - R.x, m.z - R.z) < R.r - 0.2; if (inside !== W.ring) { W.ring = inside; if (W.onRing) W.onRing(inside); } }
@@ -603,7 +683,7 @@
       W.canTag = !!tagCand();   /* no ring on the ground: the TAG button lights up when something is in reach */
     }
     W.others.forEach(o => { const k = Math.min(1, dt * 18); o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; o.z += (o.tz - o.z) * k; let d = o.try - o.ry; d = Math.atan2(Math.sin(d), Math.cos(d)); o.ry += d * k; if (now - o.lastAt > 350) o.moving = false;
-      o.g.visible = !(W.blind && o.info.asProp) && !o.info.ghost; o.g.position.set(o.x, o.y + ((o.f & 32) ? twitch(t, o.x) : 0), o.z); o.g.rotation.y = o.ry; o.g.userData.av.userData.anim(t, dt, { moving: o.moving, running: !!(o.f & 2), speed: 2.4, jumping: !!(o.f & 4) }); if (o.g.userData.pet) petFollow(o.g, o, t, dt, o.moving); });
+      o.g.visible = !(W.blind && o.info.asProp) && !o.info.ghost; o.g.position.set(o.x, o.y + ((o.f & 32) ? twitch(t, o.x) : 0), o.z); o.g.rotation.y = o.ry; o.g.userData.av.userData.anim(t, dt, { moving: o.moving, running: !!(o.f & 2), speed: 2.4, aim: !!o.info.gun, jumping: !!(o.f & 4) }); if (o.g.userData.pet) petFollow(o.g, o, t, dt, o.moving); });
     W.items.forEach(it => { if (it.gift) { it.m.rotation.y += dt * 1.2; it.m.position.y = it.y + 0.15 + Math.sin(t * 2.5 + it.x) * 0.12; }
       if (it.wig > 0) { it.wig -= dt; it.m.rotation.z = Math.sin(it.wig * 40) * 0.25 * (it.wig / 0.45); if (it.wig <= 0) it.m.rotation.z = 0; }
       const gl = it.m.userData.live && it.m.userData.glow; if (gl) gl.children.forEach(c => { c.scale.setScalar(1 + Math.sin(t * 9 + it.x) * 0.04); }); });
@@ -688,6 +768,7 @@
   W.giftIcon = k => shoot('g:' + k, () => objModel('gift', k), 1);
   W.itemIcon = function (id, slot) {
     return shoot('c:' + id, () => {
+      if (slot === 'gun') { const w = new THREE.Group(), m = gunModel(id); m.userData.tick(0.4); m.rotation.y = 1.15; w.add(m); return w; }
       if (slot === 'pet') { const p = AV.pet(THREE, id); p.userData.anim(0, false, false); return p; }
       const look = { skin: 0, hair: slot === 'hat' ? 'none' : 'short', hc: 0, outfit: slot === 'outfit' ? id : 'tee', hat: slot === 'hat' ? id : '', acc: slot === 'acc' ? id : '' };
       const g = AV.make(THREE, look, '#2f7bff', slot === 'outfit' ? 'fig' : slot); g.userData.anim(0, 0.016, {}); g.rotation.y = slot === 'acc' ? 2.6 : 0.35; return g;
@@ -706,8 +787,12 @@
       const t = (performance.now() - t0) / 1000; if (obj) { if (obj.userData.anim) { if (obj.userData.pet) obj.userData.anim(t, false, false); else obj.userData.anim(t, 1 / 60, {}); } if (spin) obj.rotation.y = Math.sin(t * 0.6) * 0.6 + (obj.userData.baseRy || 0); if (obj.userData.tick) obj.userData.tick(t); }
       extra.forEach(f => f(t)); const k = Math.max(1, 0.8 / cm.aspect); cm.position.set(0, view.ty + (view.y - view.ty) * k, view.d * k); cm.lookAt(0, view.ty, 0); r.render(s, cm); })();
     return {
-      figure(look, pet, col) { const g = new THREE.Group(), a = AV.make(THREE, look, col || '#2f7bff'); g.add(a); g.userData.anim = (t, dt) => a.userData.anim(t, dt, {}); if (pet) { const p = AV.pet(THREE, pet); p.position.set(1.5, 0, 0.4); p.scale.setScalar(0.85); g.add(p); const pa = g.userData.anim; g.userData.anim = (t, dt) => { pa(t, dt); p.userData.anim(t, false, false); }; } set(g, { y: 2.3, d: 9.2, ty: 1.9 }); return a; },
-      item(id, slot) { if (slot === 'pet') { const p = AV.pet(THREE, id); p.scale.setScalar(1.6); p.userData.pet = true; const g = new THREE.Group(); g.add(p); g.userData.anim = t => p.userData.anim(t, false, false); g.userData.pet = true; set(g, { y: 1.8, d: 6, ty: 0.9 }); return; }
+      figure(look, pet, col, gun) { const g = new THREE.Group(), a = AV.make(THREE, look, col || '#2f7bff'); g.add(a); if (gun) attachGun(a, gun); g.userData.anim = (t, dt) => { a.userData.anim(t, dt, { aim: !!gun }); if (a.userData.gun) a.userData.gun.userData.tick(t); }; if (pet) { const p = AV.pet(THREE, pet); p.position.set(1.5, 0, 0.4); p.scale.setScalar(0.85); g.add(p); const pa = g.userData.anim; g.userData.anim = (t, dt) => { pa(t, dt); p.userData.anim(t, false, false); }; } set(g, { y: 2.3, d: 9.2, ty: 1.9 }); return a; },
+      crate() { const g = new THREE.Group(), m = specGroup([[2.0, 1.3, 1.4, '#2a2733', 0, 0.65, 0], [2.1, 0.36, 1.5, '#3a3742', 0, 1.46, 0], [0.3, 1.32, 1.42, '#ffc61a', -0.6, 0.65, 0, 'n'], [0.3, 1.32, 1.42, '#ffc61a', 0.6, 0.65, 0, 'n'],
+          [0.3, 0.38, 1.52, '#ffc61a', -0.6, 1.46, 0, 'n'], [0.3, 0.38, 1.52, '#ffc61a', 0.6, 1.46, 0, 'n'], [0.42, 0.42, 0.1, '#ffffff', 0, 1.1, 0.76], [1.9, 0.07, 1.44, '#7ad8ff', 0, 1.29, 0, 'g']], 1, 0.03);
+        m.scale.setScalar(1.7); g.add(m); g.userData.baseRy = 0.45; g.userData.tick = t => { m.position.y = Math.sin(t * 2) * 0.12; }; set(g, { y: 3.2, d: 10, ty: 1.4 }); return g; },
+      item(id, slot) { if (slot === 'gun') { const g = new THREE.Group(), m = gunModel(id); m.scale.setScalar(3.4); m.position.z = -1.4; g.add(m); g.userData.baseRy = 1.2; g.userData.tick = t => m.userData.tick(t); set(g, { y: 2.2, d: 8, ty: 0.4 }); return; }
+        if (slot === 'pet') { const p = AV.pet(THREE, id); p.scale.setScalar(1.6); p.userData.pet = true; const g = new THREE.Group(); g.add(p); g.userData.anim = t => p.userData.anim(t, false, false); g.userData.pet = true; set(g, { y: 1.8, d: 6, ty: 0.9 }); return; }
         const look = { skin: 0, hair: slot === 'hat' ? 'none' : 'short', hc: 0, outfit: slot === 'outfit' ? id : 'tee', hat: slot === 'hat' ? id : '', acc: slot === 'acc' ? id : '' };
         const a = AV.make(THREE, look, '#2f7bff'); const g = new THREE.Group(); g.add(a); g.userData.anim = (t, dt) => a.userData.anim(t, dt, {}); set(g, { y: 2.3, d: 9.2, ty: 1.9 }); },
       gift(kind) { const g = objModel('gift', kind); g.scale.setScalar(2.2); g.userData.baseRy = 0.5; set(g, { y: 2.2, d: 7.5, ty: 1.0 }); return g; },

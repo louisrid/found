@@ -22,7 +22,8 @@ Profiles save to `data/found.json`. Delete that file to reset everyone.
 3. Optional but recommended: add a free Postgres database and set its URL as `DATABASE_URL`
    on the service, so coins and items survive restarts. (This path is written but untested
    against a real database; check a profile survives one restart before inviting people.)
-4. Send friends your `https://....onrender.com` link. `/#CODE` joins a party directly.
+4. **Guns (admin):** on Render, open the service, Environment, add `ADMIN_CODE` with a private code only you know. In a party lobby, press **Admin**, enter the code once (your profile remembers it), then press **Guns: ON**. Nobody else can switch guns on. Locally: `ADMIN_CODE=mycode npm start`.
+5. Send friends your `https://....onrender.com` link. `/#CODE` joins a party directly.
 
 Run one instance only: parties live in memory.
 
@@ -33,5 +34,9 @@ Run one instance only: parties live in memory.
 - Home screen: collect idle coins, spin the daily wheel, play Odd one out. Lobby: gift coins to friends.
 - Win rounds for coins and Mystery Boxes. Spend them in **Shop** and **Locker**.
 
+## Guns and crates
+- Admin switches guns on in the lobby. Then **hold F**, hold the **FIRE** button or hold **right-click** to shoot; shots aim at whoever is in front of you. 100 HP, 150 coins per kill, back after 3 seconds.
+- Everyone earns **1,000 coins a minute** while connected. A **Gun Crate** costs 500 coins and always gives a gun you don't own (Common, Uncommon, Rare, Epic, Legendary, Mythic). 17 guns; the Locker and Shop have a **Guns** tab.
+
 ## Checking it works
-`npm test` runs 30 unit and 27 integration checks. `tests/browser.py` plays a full 1v1 in Chrome (README has details).
+`npm test` runs 38 unit and 31 integration checks. `tests/browser.py` plays a full 1v1 in Chrome (README has details).

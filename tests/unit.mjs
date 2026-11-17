@@ -8,9 +8,9 @@ let n = 0; const test = (name, fn) => { fn(); n++; console.log('  ok', name); };
 const seeded = s => () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 const prof = (ch, r) => P.newProfile(String(ch).repeat(20), 'k'.repeat(48), 0, r);
 
-function party(nPlayers, rnd) {
-  const sent = []; let t = 1_000_000; const io = { all: (pa, m) => sent.push(['all', m]), one: (p, m) => sent.push([p.id, m]), me() {}, saved() {} };
-  const pa = new Party('TEST', io, { now: () => t, rnd: rnd || seeded(7) }); const ps = [];
+function party(nPlayers, rnd, cfg) {
+  const sent = []; let t = 1_000_000; const io = { all: (pa, m) => sent.push(['all', m]), one: (p, m) => sent.push([p.id, m]), me() {}, saved() {}, touch() {} };
+  const pa = new Party('TEST', io, { now: () => t, rnd: rnd || seeded(7), cfg: Object.assign({ payCoins: 0 }, cfg || {}) }); const ps = [];
   for (let i = 0; i < nPlayers; i++) ps.push(pa.add(prof(i), { fake: 1 }));
   const adv = ms => { t += ms; pa.tick(); };
   const toSeek = () => { pa.start(); for (const p of ps) if (p.role === 'hider') pa.choose(p, p.offer[0]); adv(CFG.pickMs + 10); adv(pa.mc.hideMs + 10); };
@@ -51,9 +51,9 @@ test('the shop sells an item once at its price', () => {
   assert.throws(() => P.buyItem(p, r.item), /already/); p.coins = 0; assert.throws(() => P.buyItem(p, C.ITEMS.find(i => i[3] === 'mythic')[0]), /Not enough/); assert.throws(() => P.buyItem(p, 'nope'), /No such/);
 });
 test('boxes never repeat an item, and pay coins back only when you own everything', () => {
-  const p = prof('c'), rr = seeded(9), seen = new Set(); p.boxes = C.ITEMS.length + 5; let back = 0;
-  for (let i = 0; i < C.ITEMS.length + 5; i++) { const r = P.openBox(p, rr); if (r.item) { assert.ok(!seen.has(r.item)); seen.add(r.item); } else back += r.coins; }
-  assert.equal(seen.size, C.ITEMS.length - C.STARTER.length); assert.ok(back > 0); assert.throws(() => P.openBox(p), /No Mystery Box/);
+  const cos = C.ITEMS.filter(i => i[1] !== 'gun'), p = prof('c'), rr = seeded(9), seen = new Set(); p.boxes = cos.length + 5; let back = 0;
+  for (let i = 0; i < cos.length + 5; i++) { const r = P.openBox(p, rr); if (r.item) { assert.ok(!seen.has(r.item)); seen.add(r.item); } else back += r.coins; }
+  assert.equal(seen.size, cos.length - cos.filter(i => i[3] === 'starter').length); assert.ok(back > 0); assert.throws(() => P.openBox(p), /No Mystery Box/);
 });
 test('buying a box costs coins; the daily box is once a day', () => {
   const p = prof('d'); p.coins = 700; P.buyBox(p); assert.equal(p.coins, 100); assert.equal(p.boxes, 2); assert.throws(() => P.buyBox(p), /Not enough/);
@@ -197,5 +197,45 @@ test('standing on furniture: you can stand on a top below your feet, step onto l
   assert.deepEqual(L.collide(m, -2.5, -0.3, 0.5, -2.5, -2, 0), [-2.5, -0.3], 'walk onto a low thing');
   assert.notDeepEqual(L.collide(m, 5.1, 0, 0.5, 4, 0, 6), [5.1, 0], 'walls stop you at any height');
   const house = L.map('house', 0), sofa = house.furniture.find(f => f.type === 'sofa'); assert.ok(L.T.sofa.h < 11 * 11 / 52, 'a jump clears a sofa');
+});
+
+console.log('guns, crates and pay');
+test('every gun has a shop row, stats and a model', () => {
+  const G = globalThis.FOUND_GUNS; assert.equal(G.LIST.length, C.ITEMS.filter(i => i[1] === 'gun').length); assert.ok(C.STARTER.includes(G.START));
+  for (const g of G.LIST) { assert.equal(C.BY[g.id].slot, 'gun'); assert.equal(C.BY[g.id].rarity, g.rarity); assert.ok(g.spec.length >= 6 && g.dmg > 0 && g.ms >= 50 && g.range > 10 && g.mz > 0.2, g.id); }
+  const rank = r => C.RARITY.indexOf(r), dps = g => g.dmg * g.pellets * 1000 / g.ms, byR = {}; for (const g of G.LIST) byR[g.rarity] = Math.max(byR[g.rarity] || 0, dps(g));
+  assert.ok(byR.mythic > byR.epic && byR.epic > byR.uncommon && byR.legendary > byR.rare, 'rarer guns are stronger');
+  for (const r of ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic']) assert.ok(C.CRATE.odds[r] > 0 && C.PRICE[r] > 0); assert.equal(Object.values(C.CRATE.odds).reduce((a, b) => a + b, 0), 100);
+});
+test('the gun crate gives a new gun every time, equips better ones, and stops at all of them', () => {
+  const p = prof('g'), rr = seeded(5), guns = C.ITEMS.filter(i => i[1] === 'gun' && i[3] !== 'starter'); p.coins = C.CRATE.price * guns.length; const seen = new Set();
+  assert.equal(P.privateOf(p, 0).gun, 'g_pop');
+  for (let i = 0; i < guns.length; i++) { const r = P.openCrate(p, rr); assert.ok(!seen.has(r.item) && r.slot === 'gun'); seen.add(r.item); assert.ok(P.owns(p, r.item)); }
+  assert.equal(p.coins, 0); assert.equal(seen.size, guns.length); assert.throws(() => P.openCrate(p), /own every gun|Not enough/); p.coins = 9999; assert.throws(() => P.openCrate(p), /own every gun/); assert.equal(p.coins, 9999);
+  assert.ok(['legendary', 'mythic'].includes(C.BY[p.gun].rarity));
+  const q = prof('h'); q.coins = 100; assert.throws(() => P.openCrate(q), /Not enough/); assert.equal(q.coins, 100);
+  const o = prof('i'); P.equip(o, { gun: 'g_cosmic' }); assert.equal(o.gun, undefined); o.own.push('g_cosmic'); P.equip(o, { gun: 'g_cosmic' }); assert.equal(o.gun, 'g_cosmic'); assert.equal(P.publicOf(o).gun, 'g_cosmic');
+  const m = prof('j'); m.boxes = 200; for (let i = 0; i < 200; i++) { const r = P.openBox(m); assert.ok(!r.item || r.slot !== 'gun'); }
+});
+test('everyone connected earns 1,000 coins a minute', () => {
+  const { pa, ps, adv } = party(3, null, { payCoins: 100 }); const c0 = ps.map(p => p.prof.coins);
+  for (let i = 0; i < 60; i++) adv(1000); ps.forEach((p, i) => assert.equal(p.prof.coins - c0[i], 1000));
+  ps[1].conn = null; for (let i = 0; i < 60; i++) adv(1000); assert.equal(ps[1].prof.coins - c0[1], 1000); assert.equal(ps[0].prof.coins - c0[0], 2000);
+});
+test('guns: shooting, health, kills, respawn, and only when switched on in the lobby', () => {
+  const { pa, ps, sent, adv } = party(3), [a, b, c] = ps; for (const p of ps) { p.x = 0; p.z = 0; }
+  const place = () => { a.x = 0; a.z = 0; b.x = 0; b.z = 10; c.x = 30; c.z = 0; };
+  place(); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 100); assert.ok(!sent.some(m => m[1].t === 'shot'), 'guns are off');
+  pa.setGuns(true); assert.ok(pa.state().guns); assert.equal(pa.state().players[1].hp, 100);
+  place(); a.prof.gun = 'g_pop'; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 86); assert.equal(c.hp, 100); const sh = sent.filter(m => m[1].t === 'shot').pop()[1]; assert.equal(sh.id, a.id); assert.equal(sh.e[0][2], b.id);
+  pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 86, 'too soon: the gun is still cooling'); adv(400);
+  pa.shoot(a, { ry: Math.PI }); assert.equal(b.hp, 86, 'shooting the other way misses'); adv(400); pa.shoot(a, { ry: Math.PI / 2 }); assert.equal(c.hp, 86, 'c is 30 away along +x, inside the pistol range of 42'); c.hp = 100; c.x = 60; adv(400); pa.shoot(a, { ry: Math.PI / 2 }); assert.equal(c.hp, 100, 'out of range'); c.x = 30;
+  /* the kill pays, the dead cannot move or shoot, then they come back with a shield */
+  const coins = a.prof.coins; let n = 0; while (!b.deadAt && n++ < 20) { adv(400); pa.shoot(a, { ry: 0 }); } assert.ok(b.deadAt && b.hp === 0); assert.equal(a.prof.coins, coins + CFG.killCoins); assert.ok(sent.some(m => m[1].t === 'kill' && m[1].id === b.id));
+  const bx = b.x; pa.move(b, { x: 5, z: 5, y: 0, ry: 0 }); assert.equal(b.x, bx); adv(400); pa.shoot(b, { ry: 0 }); assert.ok(a.hp === 100);
+  adv(CFG.respawnMs + 50); assert.ok(!b.deadAt && b.hp === 100 && b.shield > 0); assert.ok(sent.some(m => m[1].t === 'spawned' && m[1].id === b.id));
+  place(); b.shield = 0; a.prof.gun = 'g_cosmic'; a.prof.own.push('g_cosmic'); adv(400); pa.shoot(a, { ry: 0 }); assert.ok(b.hp < 100 && b.hp >= 100 - 16 * 3);
+  a.prof.gun = 'g_rail'; adv(1500); place(); b.hp = 100; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 86, 'a gun you do not own fires as the starter pistol (14)');
+  pa.setGuns(false); assert.ok(!pa.state().guns);
 });
 console.log(`\n${n} unit tests passed`);

@@ -1,5 +1,5 @@
 /* FOUND maps, shared by the server (hiding spots, spawns, colliders for move checks) and the browser (what to build).
-   Two maps: the LOBBY (open white grid, ready ring, the object collection on plinths) and the HOUSE (a cutaway house
+   Two maps: the LOBBY (an open lawn with the ready ring) and the HOUSE (a cutaway house
    with low walls inside a fenced garden, so every room can be seen from above).
    Units: a player is about 3.3 tall. Furniture rot is in quarter turns; at rot 0 the front faces +z.
    A local offset (x, z) at rotation a lands at (x cos a + z sin a, -x sin a + z cos a), matching three.js rotation.y. */
@@ -386,17 +386,10 @@
 
   /* ---------------- the lobby ---------------- */
   function buildLobby() {
-    const colliders = [], plinths = [];
+    const colliders = [];
     const ring = { x: 0, z: -9, r: 4.2 };
-    /* the 27 hunt objects on plinths in an arc behind the ready ring */
-    const ids = (root.FOUND_OBJECTS && root.FOUND_OBJECTS.LIST.map(o => o.id)) || [];
-    ids.forEach((id, i) => { const a = -Math.PI * 0.82 + (i / Math.max(1, ids.length - 1)) * Math.PI * 1.64, r = 27; const x = Math.sin(a) * r, z = -Math.cos(a) * r - 4; plinths.push({ id, x: +x.toFixed(2), z: +z.toFixed(2), ry: -a });
-      colliders.push({ x0: x - 0.9, x1: x + 0.9, z0: z - 0.9, z1: z + 0.9, h: 1.2 }); });
-    /* the giant letters */
-    const word = { x: 0, z: -40, h: 6 };
-    colliders.push({ x0: -19, x1: 19, z0: word.z - 1.4, z1: word.z + 1.4, h: 6 });
     const spawns = []; for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; spawns.push({ x: +(Math.sin(a) * 4.5).toFixed(2), z: +(8 + Math.cos(a) * 3).toFixed(2), ry: Math.PI }); }
-    return { kind: 'lobby', ring, plinths, word, colliders, spawns, bounds: { r: 58 } };
+    return { kind: 'lobby', ring, colliders, spawns, bounds: { r: 58 } };
   }
   /* push a circle (player) out of every box; returns the corrected position */
   const BK = 8;
