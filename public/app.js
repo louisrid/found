@@ -108,7 +108,7 @@
   /* ---------------- home and party ---------------- */
   function showHome() {
     $('#roam').hidden = true; W.menuHidden = false; $('#menu-open').hidden = true; $('#home').classList.remove('folded');
-    W.mode = 'home'; W.role = null; W.blind = false; W.setMap('lobby'); W.keep([]); W.frozen = false; W.tp(0, 8, 0);
+    W.mode = 'home'; W.role = null; W.blind = false; W.setMap('lobby'); W.keep([]); W.frozen = false; W.tp(0, 8, Math.PI);
     $('#home').hidden = false; $('#hud').hidden = true; $('#blind').hidden = true; touchControls(false);
     W.homeFrame = innerWidth < 760 ? { side: 0, up: 2.6 } : { side: -3.6, up: 1.2 };
   }

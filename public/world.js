@@ -8,7 +8,8 @@
   const LAY = globalThis.FOUND_LAYOUT, OBJ = globalThis.FOUND_OBJECTS, AV = globalThis.FOUND_AVATAR;
   const W = { homeFrame: { side: -3.4, up: 1.2 }, ok: false, on: false, mode: 'home', me: null, others: new Map(), keys: {}, joy: { x: 0, y: 0 }, zoom: 1, map: 'lobby', items: new Map(), target: null,
     blocked: () => false, onGrab: null, onRing: null, onTouch: null, onBump: null, ring: false, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches };
-  let THREE, renderer, scene, cam, sun, hemi, canvas, sky, last = 0, t0 = 0, cAz = 0, cEl = 0.3, cT = null, hidden = false, userHold = 0;
+  let THREE, renderer, scene, cam, sun, hemi, canvas, sky, last = 0, t0 = 0, cAz = Math.PI, cEl = 0.46, cT = null, hidden = false, userHold = 0, yaw = 0;
+  /* the camera always sits behind you: yaw is the way you face, the camera is at yaw + PI. Avatars face +Z at ry = 0. */
   const groups = {}; const anim = []; const fx = []; const fades = [];
   const PC = ['#ff4b3e', '#2f7bff', '#16c47f', '#ffb000', '#9b4dff', '#ff7a1a', '#ff4fa3', '#00b8d9'];
   W.PC = PC;
@@ -443,7 +444,7 @@
     for (const [id, x, y, z, ry, f] of list) { if (W.me && id === W.me.id) continue; const o = W.others.get(id); if (!o) continue;
       if (Math.hypot(x - o.x, z - o.z) > 12) { o.x = x; o.z = z; } o.tx = x; o.ty = y; o.tz = z; o.try = ry; o.f = f; o.moving = !!(f & 1); o.lastAt = now; }
   };
-  W.tp = function (x, z, ry) { const m = W.me; if (!m) return; m.x = x; m.z = z; m.ry = ry == null ? m.ry : ry; m.y = 0; m.vy = 0; m.path = null; cT = null; if (marker) marker.visible = false; };
+  W.tp = function (x, z, ry) { const m = W.me; if (!m) return; m.x = x; m.z = z; m.ry = ry == null ? m.ry : ry; yaw = m.ry; cAz = yaw + Math.PI; m.y = 0; m.vy = 0; m.path = null; cT = null; if (marker) marker.visible = false; };
   W.fix = function (x, z) { const m = W.me; if (m) { m.x = x; m.z = z; } };
   W.emote = function (id, e) { const o = W.me && id === W.me.id ? W.me : W.others.get(id); if (o) o.g.userData.av.userData.emote(e); };
   W.jump = function () { const m = W.me; if (m && m.grounded) { m.vy = 9.5; m.grounded = false; } };
@@ -516,7 +517,7 @@
     let drag = null;
     canvas.addEventListener('pointerdown', e => { if (W.blocked()) return; canvas.setPointerCapture(e.pointerId); drag = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false }; });
     canvas.addEventListener('pointermove', e => { if (!drag || drag.id !== e.pointerId) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
-      if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) drag.moved = true; if (drag.moved) { cAz -= dx * 0.006; cEl = Math.max(0.12, Math.min(1.2, cEl + dy * 0.004)); userHold = performance.now() + 2500; } });
+      if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) drag.moved = true; if (drag.moved) { yaw -= dx * 0.006; cEl = Math.max(0.22, Math.min(0.95, cEl + dy * 0.003)); if (W.me) W.me.path = null; } });
     canvas.addEventListener('pointerup', e => { if (!drag || drag.id !== e.pointerId) return; const d = drag; drag = null; if (!d.moved && performance.now() - d.t < 400) tapTo(e.clientX, e.clientY); });
     canvas.addEventListener('wheel', e => { e.preventDefault(); W.zoom = Math.max(0.6, Math.min(1.7, W.zoom * (1 + Math.sign(e.deltaY) * 0.08))); }, { passive: false });
     let pinch = null; canvas.addEventListener('touchmove', e => { if (e.touches.length === 2) { const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); if (pinch) W.zoom = Math.max(0.6, Math.min(1.7, W.zoom * pinch / d)); pinch = d; drag = null; } }, { passive: true });
@@ -550,10 +551,10 @@
       let ix = 0, iz = 0;
       if (!locked && W.mode !== 'off' && !W.frozen && !W.typing) { if (K2.w) iz -= 1; if (K2.s) iz += 1; if (K2.a) ix -= 1; if (K2.d) ix += 1; ix += W.joy.x; iz += W.joy.y; }
       /* arrows turn the camera and tilt it; WASD walks */
-      if (!locked) { const turn = (K2.arrowleft ? 1 : 0) - (K2.arrowright ? 1 : 0), tilt = (K2.arrowup ? 1 : 0) - (K2.arrowdown ? 1 : 0); if (turn) { cAz += dt * 2.2 * turn; userHold = now + 2500; } if (tilt) { cEl = Math.max(0.12, Math.min(1.2, cEl + dt * 0.9 * tilt)); userHold = now + 2500; } }
+      if (!locked) { const turn = (K2.arrowleft ? 1 : 0) - (K2.arrowright ? 1 : 0), tilt = (K2.arrowup ? 1 : 0) - (K2.arrowdown ? 1 : 0); if (turn) { yaw += dt * 2.4 * turn; m.path = null; } if (tilt) cEl = Math.max(0.22, Math.min(0.95, cEl + dt * 0.8 * tilt)); }
       let len = Math.hypot(ix, iz); if (len > 1) { ix /= len; iz /= len; len = 1; }
       let fx2 = 0, fz2 = 0, sp = 0;
-      if (len > 0.08) { m.path = null; if (marker) marker.visible = false; sp = (W.role === 'hider' ? 8 : K2.shift ? 12.5 : 9) * Math.min(1, len); fx2 = Math.sin(cAz) * -iz + Math.cos(cAz) * ix; fz2 = Math.cos(cAz) * -iz - Math.sin(cAz) * ix; const l = Math.hypot(fx2, fz2) || 1; fx2 /= l; fz2 /= l; }
+      if (len > 0.08) { m.path = null; if (marker) marker.visible = false; sp = (W.role === 'hider' ? 8 : K2.shift ? 12.5 : 9) * Math.min(1, len); fx2 = Math.sin(yaw) * -iz - Math.cos(yaw) * ix; fz2 = Math.cos(yaw) * -iz + Math.sin(yaw) * ix; const l = Math.hypot(fx2, fz2) || 1; fx2 /= l; fz2 /= l; }
       else if (m.path && m.path.length && !W.frozen && !locked) { const [px, pz] = m.path[0], dx = px - m.x, dz = pz - m.z, d = Math.hypot(dx, dz);
         if (d < 0.35) { m.path.shift(); m.best = 1e9; if (!m.path.length) { m.path = null; if (marker) marker.visible = false; } } else { fx2 = dx / d; fz2 = dz / d; sp = W.role === 'hider' ? 8 : 9.5;
           /* stuck? no progress toward the next corner for a while: plan again from here, once */
@@ -562,8 +563,9 @@
       if (moving) {
         const nx = m.x + fx2 * sp * dt, nz = m.z + fz2 * sp * dt, c = LAY.collide(map, nx, nz, 0.6, m.x, m.z);
         m.x = c[0]; m.z = c[1];
-        const want = Math.atan2(fx2, fz2); m.ry += Math.atan2(Math.sin(want - m.ry), Math.cos(want - m.ry)) * Math.min(1, dt * 14);
+        if (len <= 0.08) { const want = Math.atan2(fx2, fz2); m.ry += Math.atan2(Math.sin(want - m.ry), Math.cos(want - m.ry)) * Math.min(1, dt * 10); yaw = m.ry; }
       }
+      if (len > 0.08 || !m.path) m.ry += Math.atan2(Math.sin(yaw - m.ry), Math.cos(yaw - m.ry)) * Math.min(1, dt * 16);
       m.moving = moving; m.running = moving && (K2.shift || sp > 9.6);
       if (!m.grounded || m.vy) { m.vy -= 26 * dt; m.y += m.vy * dt; if (m.y <= 0) { m.y = 0; m.vy = 0; if (!m.grounded) { m.grounded = true; m.g.userData.av.userData.M.scale.set(2.2, 1.75, 2.2); } } }
       const Ms = m.g.userData.av.userData.M.scale; Ms.x += (2 - Ms.x) * 0.2; Ms.y += (2 - Ms.y) * 0.2; Ms.z += (2 - Ms.z) * 0.2;
@@ -574,9 +576,9 @@
       if (W.map === 'lobby') { const R = LAY.lobby.ring, inside = Math.hypot(m.x - R.x, m.z - R.z) < R.r - 0.2; if (inside !== W.ring) { W.ring = inside; if (W.onRing) W.onRing(inside); } }
       /* walk up to a gift box and it's yours */
       if (W.map !== 'lobby' && !W.frozen && !W.dead) W.items.forEach(it => { if (it.gift && Math.hypot(it.x - m.x, it.z - m.z) < 2.8 && now > it.pend) { it.pend = now + 1500; if (W.onGrab) W.onGrab(it.id); } });
-      /* camera: just behind you, and it follows as you turn. Backing straight up doesn't spin it; turning it yourself holds it for a moment */
-      if (moving && now > userHold) { const behind = m.ry + Math.PI, d = Math.atan2(Math.sin(behind - cAz), Math.cos(behind - cAz)), backing = len > 0.08 && iz > 0.3 && Math.abs(ix) < 0.5; if (!backing) cAz += d * Math.min(1, dt * (Math.abs(d) > 2 ? 1.4 : 3.2)); }
-      const prop = !!m.info.asProp, base = prop ? 7.5 : 10.5, dist = base * W.zoom, ty = (prop ? 1.6 : 3.6) + m.y * 0.5, v = tmpV().set(m.x, ty, m.z);
+      /* camera: always straight behind you, a little above */
+      { const behind = yaw + Math.PI, d = Math.atan2(Math.sin(behind - cAz), Math.cos(behind - cAz)); cAz += d * Math.min(1, dt * 12); }
+      const prop = !!m.info.asProp, base = prop ? 10 : 13.5, dist = base * W.zoom, ty = (prop ? 1.8 : 3.4) + m.y * 0.5, v = tmpV().set(m.x, ty, m.z);
       /* a caught hider watches the seeker */
       if (W.dead) for (const o of W.others.values()) if (o.info && o.info.role === 'seeker') { v.set(o.x, 3.6, o.z); break; }
       if (!cT) cT = v.clone(); cT.lerp(v, 0.16);

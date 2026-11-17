@@ -74,8 +74,9 @@ object's size bonus) and 400 for surviving.
 copies of each object (2 / 3 / 5), and number of seekers (auto / 1 / 2). Everyone can view them. Changing one un-readies
 the room. Coins don't depend on the rules: hiding points stop counting at the standard seek length.
 
-Controls: WASD to move, the camera sits behind you and follows; drag or arrow keys to look around, wheel to zoom,
-Space to jump, E to tag, 1/2/3 to wave, cheer and dance, M for sound. Phones get a joystick and buttons.
+Controls: the camera always sits behind you, a little above. WASD moves (W forward, S back, A and D sideways); drag
+or the left/right arrows turn you, drag up and down or the up/down arrows tilt the view, wheel to zoom, Space to jump,
+E to tag, 1 to 6 for emotes, M for sound. Phones get a joystick and buttons; drag the screen to turn.
 
 ## Coins, shop and Mystery Box
 
