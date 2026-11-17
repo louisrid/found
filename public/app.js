@@ -62,9 +62,9 @@
     emote(m) { W.emote(m.id, m.e); },
     role(m) { S.offer = m; S.offer.mine = m.picked; showPick(); },
     round(m) {
-      S.round = m; S.moveLeft = 6; closeLayer('pick'); W.setMap(m.map, m.seed); W.setItems(m.items); paintRole();
+      S.round = m; S.moveLeft = 5; W.restless = false; closeLayer('pick'); W.setMap(m.map, m.seed); W.setItems(m.items); paintRole();
       if (!m.role) toast('A round is on. You are watching until the next one.');
-      else if (!S.tipped[m.role]) { S.tipped[m.role] = 1; tip(m.role === 'hider' ? `Hide anywhere: jump (${W.touch ? 'the jump button' : '<kbd>Space</kbd>'}) onto tables, beds and sofas. Moving to a new spot every 15 s earns +40.` : W.touch ? 'Walk up to an object and press TAG.' : 'Walk up to an object and press <kbd>E</kbd> or click it.', 9000); }
+      else if (!S.tipped[m.role]) { S.tipped[m.role] = 1; tip(m.role === 'hider' ? `Hide anywhere: jump (${W.touch ? 'the jump button' : '<kbd>Space</kbd>'}) onto tables, beds and sofas. Change spot every 10 s for +40. Stay still too long and your object starts to twitch.` : W.touch ? 'Walk up to an object and press TAG.' : 'Walk up to an object and press <kbd>E</kbd> or click it.', 9000); }
     },
     taken(m) { const mine = S.me && m.by === S.me.id; W.take(m.item); if (mine) { SFX.pop(); toast('You found a Mystery Box. It is yours after the round.'); } },
     found(m) {
@@ -73,7 +73,10 @@
     },
     miss(m) { W.nope(m.item); if (S.round) S.round.endAt = m.endAt; if (S.me && m.by === S.me.id) { SFX.nope(); toast(`Just an object. ${(S.party && S.party.rules && S.party.rules.penalty) || 10} seconds lost.`); } },
     /* the last 30%: the seeker learns which objects are still hidden */
-    hint(m) { const r = myRow(); if (!r || !m.names.length) return; SFX.pop && SFX.pop(); if (r.role === 'seeker') toast('Hint: look for ' + m.names.join(', ')); else if (r.role === 'hider' && !r.found) toast('The seeker now knows what is still hidden. Move!'); paintRole(); },
+    hint(m) { const r = myRow(), list = m.names || m.rooms; if (!r || !list || !list.length) return; SFX.pop();
+      if (r.role === 'seeker') toast(m.names ? 'Hint: look for ' + list.join(', ') : 'Hint: try ' + list.join(', '));
+      else if (r.role === 'hider' && !r.found) toast(m.names ? 'The seeker now knows what is still hidden. Move!' : 'The seeker now knows which rooms to search. Move!'); paintRole(); },
+    restless(m) { W.restless = !!m.on; if (m.on) { SFX.nope(); toast('You have kept still too long: your object is twitching. Move to stop it.'); } paintRole(); },
     bonus(m) { S.moveLeft = m.left; SFX.win(); toast(`+${m.n} for moving to a new spot` + (m.left ? '' : ' (that was the last one)')); paintRole(); },
     results(m) { S.results = m; showResults(); if (m.reward && m.reward.won) SFX.win(); },
     got(m) { SFX.win(); toast(m.why === 'spin' ? (m.box ? 'The wheel gave you a Mystery Box!' : `The wheel gave you ${fmt(m.coins)} coins!`) : `Collected ${fmt(m.coins)} coins.`); },
@@ -160,8 +163,8 @@
   function paintRole() {
     const el = $('#role'), P = S.party, r = myRow(); if (!P || !r || !live(P.phase)) { el.hidden = true; $('#actions').hidden = true; return; }
     el.hidden = false; const left = P.round ? P.round.left : 0;
-    if (r.role === 'hider' && !r.found) { const o = OBJ.BY[r.prop] || { name: '' }, mv = P.phase === 'seek' && S.moveLeft > 0 ? `<p class="role-hint">New spot every 15 s: +40 (${S.moveLeft} left)</p>` : ''; el.innerHTML = `<img src="${r.prop ? W.icon(r.prop) : 'mark.svg'}" alt=""><div><h3>You are a</h3><h2>${esc(o.name)}</h2>${mv}</div>`; }
-    else if (r.role === 'seeker') { const h = P.round && P.round.hint; el.innerHTML = `<img src="mark.svg" alt=""><div><h3>Seeker</h3><h2>${left} to find</h2>${h && h.length ? `<p class="role-hint">Look for: ${h.map(esc).join(', ')}</p>` : ''}</div>`; }
+    if (r.role === 'hider' && !r.found) { const o = OBJ.BY[r.prop] || { name: '' }, mv = P.phase !== 'seek' ? '' : W.restless ? `<p class="role-hint hot">Twitching! Move to stop</p>` : S.moveLeft > 0 ? `<p class="role-hint">New spot every 10 s: +40 (${S.moveLeft} left)</p>` : ''; el.innerHTML = `<img src="${r.prop ? W.icon(r.prop) : 'mark.svg'}" alt=""><div><h3>You are a</h3><h2>${esc(o.name)}</h2>${mv}</div>`; }
+    else if (r.role === 'seeker') { const h = P.round && P.round.hint, rm = P.round && P.round.rooms; el.innerHTML = `<img src="mark.svg" alt=""><div><h3>Seeker</h3><h2>${left} to find</h2>${h && h.length ? `<p class="role-hint">Look for: ${h.map(esc).join(', ')}</p>` : ''}${rm && rm.length ? `<p class="role-hint">Try: ${rm.map(esc).join(', ')}</p>` : ''}</div>`; }
     else if (r.role === 'hider') el.innerHTML = `<img src="mark.svg" alt=""><div><h3>Caught: watching the seeker</h3><h2>${left} still hidden</h2></div>`;
     else el.innerHTML = `<img src="mark.svg" alt=""><div><h3>Watching</h3><h2>${left} hidden</h2></div>`;
     $('#actions').hidden = !(r.role === 'seeker' && P.phase === 'seek');
@@ -205,7 +208,7 @@
     ['penalty', 'Wrong tag costs', [[5, '5s'], [10, '10s'], [20, '20s']], 'Seconds lost when the seeker tags an ordinary object.'],
     ['copies', 'Copies of each object', [[2, '2'], [3, '3'], [5, '5']], 'More copies make hiders harder to spot.'],
     ['seekers', 'Seekers', [[0, 'Auto'], [1, 'One'], [2, 'Two']], 'Auto is one seeker, or two from 7 players.'],
-    ['hints', 'Seeker hint', [[0, 'Off'], [1, 'Last 30%']], 'Near the end, the seeker is told which objects are still hidden.']];
+    ['hints', 'Seeker hints', [[0, 'Off'], [1, 'On']], 'Last 30%: which objects are still hidden. Last 15%: which rooms.']];
   function showRules() {
     const P = S.party; if (!P) return; const host = P.host === (S.me && S.me.id), R = P.rules || {}, T = P.times || { hide: 30000, seek: 150000 };
     const dur = ms => { const s = Math.round(ms / 1000); return s >= 60 ? Math.floor(s / 60) + 'm' + (s % 60 ? ' ' + (s % 60) + 's' : '') : s + 's'; };

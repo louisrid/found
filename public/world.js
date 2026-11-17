@@ -448,7 +448,10 @@
   W.tp = function (x, z, ry) { const m = W.me; if (!m) return; m.x = x; m.z = z; m.ry = ry == null ? m.ry : ry; yaw = m.ry; look = 0; cAz = yaw + Math.PI; m.y = 0; m.vy = 0; m.path = null; cT = null; if (marker) marker.visible = false; };
   W.fix = function (x, z) { const m = W.me; if (m) { m.x = x; m.z = z; } };
   W.emote = function (id, e) { const o = W.me && id === W.me.id ? W.me : W.others.get(id); if (o) o.g.userData.av.userData.emote(e); };
-  W.jump = function () { const m = W.me; if (m && m.grounded && !W.frozen) { m.vy = 11; m.grounded = false; } };   /* about 2.3 high: onto tables, beds and sofas, not shelves or fridges */
+  /* one jump reaches about 2.3 (tables, beds, sofas); a second jump in the air reaches shelves and counters */
+  W.jump = function () { const m = W.me; if (!m || W.frozen) return; if (m.grounded) { m.vy = 11; m.grounded = false; m.dj = false; } else if (!m.dj) { m.vy = 10; m.dj = true; } };
+  /* a restless hider's object hops every couple of seconds */
+  const twitch = (t, seed) => { const ph = (t + seed * 0.37) % 2.2; return ph < 0.32 ? Math.sin(ph / 0.32 * Math.PI) * 0.55 : 0; };
 
   /* ---------------- the map ---------------- */
   /* show the lobby or a map. Each round's map has its own arrangement (the seed), built when first shown; the old one is thrown away. */
@@ -555,27 +558,28 @@
       if (!locked) { const turn = (K2.arrowleft ? 1 : 0) - (K2.arrowright ? 1 : 0), tilt = (K2.arrowup ? 1 : 0) - (K2.arrowdown ? 1 : 0); if (turn) { yaw += dt * 3.2 * turn * W.sens.x; m.path = null; } if (tilt) cEl = Math.max(0.22, Math.min(0.95, cEl + dt * 1.25 * tilt * W.sens.y * (W.sens.invY ? -1 : 1))); }
       let len = Math.hypot(ix, iz); if (len > 1) { ix /= len; iz /= len; len = 1; }
       let fx2 = 0, fz2 = 0, sp = 0;
-      if (len > 0.08) { m.path = null; if (marker) marker.visible = false; sp = (W.role === 'hider' ? 8 : K2.shift ? 12.5 : 9) * Math.min(1, len); fx2 = Math.sin(yaw) * -iz - Math.cos(yaw) * ix; fz2 = Math.cos(yaw) * -iz + Math.sin(yaw) * ix; const l = Math.hypot(fx2, fz2) || 1; fx2 /= l; fz2 /= l; }
+      if (len > 0.08) { m.path = null; if (marker) marker.visible = false; sp = (W.role === 'hider' ? 32 : K2.shift ? 50 : 36) * Math.min(1, len); fx2 = Math.sin(yaw) * -iz - Math.cos(yaw) * ix; fz2 = Math.cos(yaw) * -iz + Math.sin(yaw) * ix; const l = Math.hypot(fx2, fz2) || 1; fx2 /= l; fz2 /= l; }
       else if (m.path && m.path.length && !W.frozen && !locked) { const [px, pz] = m.path[0], dx = px - m.x, dz = pz - m.z, d = Math.hypot(dx, dz);
-        if (d < 0.35) { m.path.shift(); m.best = 1e9; if (!m.path.length) { m.path = null; if (marker) marker.visible = false; } } else { fx2 = dx / d; fz2 = dz / d; sp = W.role === 'hider' ? 8 : 9.5;
+        if (d < 0.35) { m.path.shift(); m.best = 1e9; if (!m.path.length) { m.path = null; if (marker) marker.visible = false; } } else { fx2 = dx / d; fz2 = dz / d; sp = Math.min(W.role === 'hider' ? 32 : 38, d / Math.max(dt, 1e-3));
           /* stuck? no progress toward the next corner for a while: plan again from here, once */
           if (d < (m.best || 1e9) - 0.05) { m.best = d; m.stuckT = 0; } else if ((m.stuckT = (m.stuckT || 0) + dt) > 0.9) { const goal = m.path[m.path.length - 1]; m.stuckT = 0; m.best = 1e9; const again = (m.replanned || 0) < 3 && findPath(W.mapObj, m.x, m.z, goal[0], goal[1]); m.replanned = (m.replanned || 0) + 1; m.path = again && again.length ? again : null; if (!m.path && marker) marker.visible = false; } } }
       const moving = sp > 0; walking = len > 0.08;
       if (moving) look *= Math.max(0, 1 - dt * 6);   /* start walking and the camera swings back behind you */
       if (moving) {
-        const nx = m.x + fx2 * sp * dt, nz = m.z + fz2 * sp * dt, c = LAY.collide(map, nx, nz, 0.6, m.x, m.z, m.y);
-        m.x = c[0]; m.z = c[1];
+        if (!m.grounded) sp *= 0.45;   /* slower in the air, so you can land on things at this speed */
+        const step = sp * dt, n = Math.max(1, Math.ceil(step / 0.4));
+        for (let i = 0; i < n; i++) { const c = LAY.collide(map, m.x + fx2 * step / n, m.z + fz2 * step / n, 0.6, m.x, m.z, m.y); m.x = c[0]; m.z = c[1]; }
         if (len <= 0.08) { const want = Math.atan2(fx2, fz2); m.ry += Math.atan2(Math.sin(want - m.ry), Math.cos(want - m.ry)) * Math.min(1, dt * 10); yaw = m.ry; }
       }
       if (len > 0.08 || !m.path) m.ry += Math.atan2(Math.sin(yaw - m.ry), Math.cos(yaw - m.ry)) * Math.min(1, dt * 16);
-      m.moving = moving; m.running = moving && (K2.shift || sp > 9.6);
+      m.moving = moving; m.running = moving && (K2.shift || sp > 38.4);
       /* standing on furniture: step up onto low things, fall when you walk off an edge, land on whatever is under you */
       const gnd = map ? LAY.groundAt(map, m.x, m.z, m.y) : 0;
       if (m.grounded && !m.vy) { if (gnd > m.y) m.y = gnd; else if (gnd < m.y - 0.02) { m.grounded = false; m.vy = 0; } }
       if (!m.grounded || m.vy) { m.vy -= 26 * dt; m.y += m.vy * dt; if (m.y <= gnd) { m.y = gnd; m.vy = 0; if (!m.grounded) { m.grounded = true; m.g.userData.av.userData.M.scale.set(2.2, 1.75, 2.2); } } }
       const Ms = m.g.userData.av.userData.M.scale; Ms.x += (2 - Ms.x) * 0.2; Ms.y += (2 - Ms.y) * 0.2; Ms.z += (2 - Ms.z) * 0.2;
-      m.g.position.set(m.x, m.y, m.z); m.g.rotation.y = m.ry; m.g.userData.tag.visible = W.map === 'lobby';
-      m.g.userData.av.userData.anim(t, dt, { moving, running: m.running, speed: m.running ? 1.4 : 1.1, jumping: !m.grounded });
+      m.g.position.set(m.x, m.y + (W.restless && W.role === 'hider' ? twitch(t, m.x) : 0), m.z); m.g.rotation.y = m.ry; m.g.userData.tag.visible = W.map === 'lobby';
+      m.g.userData.av.userData.anim(t, dt, { moving, running: m.running, speed: m.running ? 2.8 : 2.4, jumping: !m.grounded });
       if (m.g.userData.pet) petFollow(m.g, m, t, dt, moving);
       /* lobby: the ready ring */
       if (W.map === 'lobby') { const R = LAY.lobby.ring, inside = Math.hypot(m.x - R.x, m.z - R.z) < R.r - 0.2; if (inside !== W.ring) { W.ring = inside; if (W.onRing) W.onRing(inside); } }
@@ -586,7 +590,7 @@
       const prop = !!m.info.asProp, base = prop ? 11.5 : 15.5, dist = base * W.zoom * W.sens.dist, ty = (prop ? 1.8 : 3.4) + m.y * 0.5, v = tmpV().set(m.x, ty, m.z);
       /* a caught hider watches the seeker */
       if (W.dead) for (const o of W.others.values()) if (o.info && o.info.role === 'seeker') { v.set(o.x, 3.6, o.z); break; }
-      if (!cT) cT = v.clone(); cT.lerp(v, 0.16);
+      if (!cT) cT = v.clone(); cT.lerp(v, 0.34);
       const el = cEl;
       cam.position.set(cT.x + Math.sin(cAz) * Math.cos(el) * dist, cT.y + Math.sin(el) * dist, cT.z + Math.cos(cAz) * Math.cos(el) * dist);
       /* walls are 2.4 high: keep the camera above them so it never ends up inside one */
@@ -598,8 +602,8 @@
       for (const c of (groups[W.mapKey] && groups[W.mapKey].userData.canopies) || []) { const d = Math.hypot(c.x - m.x, c.z - m.z), want = d < c.r + 1.5 ? 0.25 : 1; c.mat.opacity += (want - c.mat.opacity) * 0.12; c.out.opacity = c.mat.opacity; c.mat.depthWrite = c.mat.opacity > 0.95; }
       W.canTag = !!tagCand();   /* no ring on the ground: the TAG button lights up when something is in reach */
     }
-    W.others.forEach(o => { const k = Math.min(1, dt * 10); o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; o.z += (o.tz - o.z) * k; let d = o.try - o.ry; d = Math.atan2(Math.sin(d), Math.cos(d)); o.ry += d * k; if (now - o.lastAt > 350) o.moving = false;
-      o.g.visible = !(W.blind && o.info.asProp) && !o.info.ghost; o.g.position.set(o.x, o.y, o.z); o.g.rotation.y = o.ry; o.g.userData.av.userData.anim(t, dt, { moving: o.moving, running: !!(o.f & 2), speed: 1.1, jumping: o.y > 0.05 }); if (o.g.userData.pet) petFollow(o.g, o, t, dt, o.moving); });
+    W.others.forEach(o => { const k = Math.min(1, dt * 18); o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; o.z += (o.tz - o.z) * k; let d = o.try - o.ry; d = Math.atan2(Math.sin(d), Math.cos(d)); o.ry += d * k; if (now - o.lastAt > 350) o.moving = false;
+      o.g.visible = !(W.blind && o.info.asProp) && !o.info.ghost; o.g.position.set(o.x, o.y + ((o.f & 32) ? twitch(t, o.x) : 0), o.z); o.g.rotation.y = o.ry; o.g.userData.av.userData.anim(t, dt, { moving: o.moving, running: !!(o.f & 2), speed: 2.4, jumping: !!(o.f & 4) }); if (o.g.userData.pet) petFollow(o.g, o, t, dt, o.moving); });
     W.items.forEach(it => { if (it.gift) { it.m.rotation.y += dt * 1.2; it.m.position.y = it.y + 0.15 + Math.sin(t * 2.5 + it.x) * 0.12; }
       if (it.wig > 0) { it.wig -= dt; it.m.rotation.z = Math.sin(it.wig * 40) * 0.25 * (it.wig / 0.45); if (it.wig <= 0) it.m.rotation.z = 0; }
       const gl = it.m.userData.live && it.m.userData.glow; if (gl) gl.children.forEach(c => { c.scale.setScalar(1 + Math.sin(t * 9 + it.x) * 0.04); }); });

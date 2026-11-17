@@ -129,7 +129,7 @@ test('a round ends if the seeker leaves or the last hider leaves; late joiners w
   const b = party(2); b.toSeek(); b.pa.remove(b.hiders()[0].id); assert.equal(b.pa.phase, 'results');
 });
 test('moves are clamped to a sane speed and pushed out of walls', () => {
-  const { pa, ps, adv } = party(1); const p = ps[0], x0 = p.x; adv(100); pa.move(p, { x: x0 + 500, z: p.z, y: 0, ry: 0 }); assert.ok(p.x - x0 < 10);
+  const { pa, ps, adv } = party(1); const p = ps[0], x0 = p.x; adv(100); pa.move(p, { x: x0 + 500, z: p.z, y: 0, ry: 0 }); assert.ok(p.x - x0 < CFG.maxSpeed * 0.1 * 1.6 + 1.6);
   pa.setMap(p, 'mansion'); pa.start(); adv(CFG.pickMs + 10); adv(CFG.soloHideMs + 10); p.x = 10; p.z = 41.6; adv(100); pa.move(p, { x: 10, z: 40.0, y: 0, ry: 0 }); assert.ok(p.z > 40.6);
 });
 test('the host picks the map; changing it un-readies everyone', () => {
@@ -175,12 +175,19 @@ test('seeker hint: in the last 30% of the seek the seeker is told which objects 
   assert.deepEqual([...h].sort(), [...new Set(names)].sort()); assert.ok(a.sent.some(([to, m]) => to === 'all' && m.t === 'hint'));
   const b = party(3); b.pa.setRule(b.ps[0], 'hints', 0); b.toSeek(); b.adv(Math.round(b.pa.round.seekLen * 0.9)); assert.equal(b.pa.roundInfo().hint, null);
 });
-test('move bonus: a hider who changes spot (6 m, 15 s apart) earns 40, up to 6 times a round', () => {
-  const a = party(3); a.toSeek(); const h = a.hiders()[0], s0 = h.score;
-  h.x += 3; a.adv(CFG.moveEveryMs + 10); assert.equal(h.score, s0, '3 m is not a new spot');
-  h.x += 4; a.adv(200); assert.equal(h.score, s0 + CFG.moveBonus); assert.ok(a.sent.some(([to, m]) => to === h.id && m.t === 'bonus' && m.left === CFG.moveMax - 1));
-  h.x += 7; a.adv(200); assert.equal(h.score, s0 + CFG.moveBonus, 'not again within 15 s');
-  for (let i = 0; i < 7; i++) { h.x += (i % 2 ? -7 : 7); a.adv(CFG.moveEveryMs + 10); } assert.equal(a.pa.phase, "seek"); assert.equal(h.score, s0 + CFG.moveBonus * CFG.moveMax, 'capped');
+test('move bonus: a hider who changes spot (8 m, 10 s apart) earns 40, up to 5 times a round', () => {
+  const a = party(3); a.toSeek(); const h = a.hiders()[0], s0 = h.score, D = CFG.moveDist;
+  h.x += D / 2; a.adv(CFG.moveEveryMs + 10); assert.equal(h.score, s0, 'half the distance is not a new spot');
+  h.x += D / 2 + 0.5; a.adv(200); assert.equal(h.score, s0 + CFG.moveBonus); assert.ok(a.sent.some(([to, m]) => to === h.id && m.t === 'bonus' && m.left === CFG.moveMax - 1));
+  h.x += D + 1; a.adv(200); assert.equal(h.score, s0 + CFG.moveBonus, 'not again so soon');
+  for (let i = 0; i < 6; i++) { h.x += (i % 2 ? -1 : 1) * (D + 1); a.adv(CFG.moveEveryMs + 10); } assert.equal(a.pa.phase, 'seek'); assert.equal(h.score, s0 + CFG.moveBonus * CFG.moveMax, 'capped');
+});
+test('second hint names the rooms; a hider who keeps still for 20 s twitches (flag 32 in positions) until they move', () => {
+  const a = party(3); a.toSeek(); const h = a.hiders()[0], len = a.pa.round.seekLen;
+  a.adv(CFG.restlessMs + 10); assert.equal(h.restless, true); assert.ok(a.sent.some(([to, m]) => to === h.id && m.t === 'restless' && m.on));
+  a.sent.length = 0; a.pa.sendPositions(); const pos = a.sent.find(([, m]) => m.t === 'pos'); assert.ok(pos && pos[1].p.some(r => r[0] === h.id && (r[5] & 32)));
+  h.x += CFG.stillDist + 1; a.adv(200); assert.equal(h.restless, false);
+  a.adv(Math.round(len * 0.86) - CFG.restlessMs); const rooms = a.pa.roundInfo().rooms; assert.ok(rooms && rooms.length >= 1 && rooms.every(r => typeof r === 'string'));
 });
 test('standing on furniture: you can stand on a top below your feet, step onto low things, never onto walls', () => {
   const L = globalThis.FOUND_LAYOUT, m = { colliders: [{ x0: 0, x1: 2, z0: 0, z1: 2, h: 1 }, { x0: 5, x1: 5.2, z0: -5, z1: 5, h: 9 }, { x0: -3, x1: -2, z0: 0, z1: 1, h: 0.3 }], bounds: { x0: -20, x1: 20, z0: -20, z1: 20 } };

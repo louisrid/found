@@ -12,16 +12,17 @@ import { publicOf, addBox } from './profiles.js';
 const OBJ = globalThis.FOUND_OBJECTS, LAY = globalThis.FOUND_LAYOUT;
 
 export const AB = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-export const CFG = { maxPlayers: 12, pickMs: 12000, soloHideMs: 3000, resultsMs: 14000, swapMs: 7000, readyMs: 3000,
+export const CFG = { maxPlayers: 12, pickMs: 8000, soloHideMs: 3000, resultsMs: 9000, swapMs: 5000, readyMs: 3000,
   copies: 3, bots: 3, reach: 4.2, tagCooldownMs: 1000, missPenaltyMs: 10000, maxStake: 500,
-  findPts: 250, allFoundBonus: 300, survivePts: 400, perSecond: 2, maxSpeed: 16,
+  findPts: 250, allFoundBonus: 300, survivePts: 400, perSecond: 3, maxSpeed: 64,
   /* hints: in the last 30% of the seek the seeker is told which objects are still hidden. Moving: hiders earn a bonus for changing spot */
-  hintAt: 0.3, moveBonus: 40, moveDist: 6, moveEveryMs: 15000, moveMax: 6 };
+  /* hint 1 (last 30%): which objects; hint 2 (last 15%): which rooms. A hider who stays within 2 m for 20 s starts twitching */
+  hintAt: 0.3, hint2At: 0.15, moveBonus: 40, moveDist: 8, moveEveryMs: 10000, moveMax: 5, restlessMs: 20000, stillDist: 2 };
 /* each map: how long hiders get, how long seekers get, how many other objects and gift boxes are scattered */
 export const MAPCFG = {
-  cabin: { hideMs: 20000, seekMs: 100000, filler: 22, gifts: 0 },
-  house: { hideMs: 30000, seekMs: 150000, filler: 40, gifts: 0 },
-  mansion: { hideMs: 35000, seekMs: 180000, filler: 60, gifts: 0 }
+  cabin: { hideMs: 12000, seekMs: 60000, filler: 22, gifts: 0 },
+  house: { hideMs: 18000, seekMs: 90000, filler: 40, gifts: 0 },
+  mansion: { hideMs: 21000, seekMs: 108000, filler: 60, gifts: 0 }
 };
 export const STAKES = [0, 100, 250, 500];
 /* host-editable rules: every option list is the set of values the server accepts; the first listed value is NOT the default (see RULES0) */
@@ -55,7 +56,8 @@ export class Party {
       map: this.phase === 'lobby' ? (this.mapPick === 'auto' ? mapFor(this.players.size) : this.mapPick) : this.mapId, mapPick: this.mapPick, stake: this.stake, rules: this.rules, times: (m => ({ hide: m.hideMs, seek: m.seekMs }))(this.phase === 'lobby' ? this.mapCfg(this.mapPick === 'auto' ? mapFor(this.players.size) : this.mapPick) : this.mc), pot: this.pot ? this.pot.amount * 2 : 0,
       players: [...this.players.values()].map(p => this.view(p)), round: this.roundInfo(), readyAt: this.readyAt || 0, max: this.cfg.maxPlayers, now: this.now() };
   }
-  roundInfo() { const R = this.round; if (!R) return null; return { n: this.matchRound, of: this.matchRounds, pickEnds: R.pickEnds, hideEnds: R.hideEnds, endAt: R.endAt, resultsEnd: R.resultsEnd, left: this.live ? this.left() : 0, hint: R.hint ? this.hintList() : null }; }
+  roundInfo() { const R = this.round; if (!R) return null; return { n: this.matchRound, of: this.matchRounds, pickEnds: R.pickEnds, hideEnds: R.hideEnds, endAt: R.endAt, resultsEnd: R.resultsEnd, left: this.live ? this.left() : 0, hint: R.hint ? this.hintList() : null, rooms: R.hint2 ? this.hintRooms() : null }; }
+  hintRooms() { const R = this.round, map = this.map(), out = new Set(); for (const p of this.active()) if (p.role === 'hider' && !p.found) out.add(map.roomAt(p.x, p.z)); if (R.items) for (const it of R.items.values()) if (it.bot) out.add(map.roomAt(it.x, it.z)); return [...out]; }
   /* the objects still hidden, by name, for the seeker's hint */
   hintList() { const R = this.round, out = new Set(); for (const p of this.active()) if (p.role === 'hider' && !p.found && OBJ.BY[p.prop]) out.add(OBJ.BY[p.prop].name); if (R.items) for (const it of R.items.values()) if (it.bot) out.add(OBJ.BY[it.type].name); return [...out]; }
   sync() { this.io.all(this, this.state()); }
@@ -190,18 +192,20 @@ export class Party {
     if (this.phase === 'hide' && p.role === 'seeker') { x = p.x; z = p.z; }   // seekers wait at the gate
     const dt = Math.max(0.05, (now - p.at) / 1000), max = this.cfg.maxSpeed * dt * 1.6 + 1.5, dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz);
     let fixed = false; if (d > max) { x = p.x + dx / d * max; z = p.z + dz / d * max; fixed = true; }
-    const map = this.inHouse() ? this.map() : LAY.lobby; y = Math.max(0, Math.min(6, y)); [x, z] = LAY.collide(map, x, z, 0.55, p.x, p.z, y);
+    const map = this.inHouse() ? this.map() : LAY.lobby; y = Math.max(0, Math.min(6, y));
+    /* checked in short steps so a fast move cannot pass through a thin wall */
+    { const n = Math.max(1, Math.ceil(Math.hypot(x - p.x, z - p.z) / 0.5)); let cx = p.x, cz = p.z; for (let i = 1; i <= n; i++) { const r = LAY.collide(map, p.x + (x - p.x) * i / n, p.z + (z - p.z) * i / n, 0.55, cx, cz, y); if (i < n && (Math.abs(r[0] - (p.x + (x - p.x) * i / n)) > 1e-6 || Math.abs(r[1] - (p.z + (z - p.z) * i / n)) > 1e-6)) { cx = r[0]; cz = r[1]; break; } cx = r[0]; cz = r[1]; } x = cx; z = cz; }
     p.x = x; p.z = z; p.y = Math.max(0, Math.min(6, y)); p.ry = ry; p.at = now; p.f = (b.f | 0) & 15; p.moved = true;
     if (fixed) this.io.one(p, { t: 'fix', x: r2(x), z: r2(z) });
   }
   /* positions: while hiders hide, seekers are told nothing */
   sendPositions() {
-    const out = []; for (const p of this.players.values()) if (p.moved) { p.moved = false; out.push([p.id, r2(p.x), r2(p.y), r2(p.z), r2(p.ry), p.f | 0]); }
+    const out = []; for (const p of this.players.values()) if (p.moved) { p.moved = false; out.push([p.id, r2(p.x), r2(p.y), r2(p.z), r2(p.ry), (p.f | 0) | (p.restless && this.phase === 'seek' ? 32 : 0)]); }
     if (!out.length) return; const msg = { t: 'pos', p: out };
     if (this.phase === 'hide') { for (const p of this.players.values()) if (p.role !== 'seeker') this.io.one(p, msg); } else this.io.all(this, msg);
   }
   /* ---------- seek ---------- */
-  beginSeek() { const now = this.now(), R = this.round; R.seekLen = R.endAt - now; this.phase = 'seek'; for (const p of this.players.values()) { p.moved = true; p.anchor = { x: p.x, z: p.z, t: now }; p.moves = 0; } this.sync(); }
+  beginSeek() { const now = this.now(), R = this.round; R.seekLen = R.endAt - now; this.phase = 'seek'; for (const p of this.players.values()) { p.moved = true; p.anchor = { x: p.x, z: p.z, t: now }; p.still = { x: p.x, z: p.z, t: now }; p.restless = false; p.moves = 0; } this.sync(); }
   /* a seeker tags something: a hider is caught and is out for the round, an ordinary object costs time */
   tag(p, id) {
     const R = this.round, now = this.now(), cfg = this.cfg;
@@ -278,6 +282,12 @@ export class Party {
       if (now >= R.endAt) return this.endRound('hiders');
       const cfg = this.cfg;
       if (!R.hint && this.rules.hints && now >= R.endAt - R.seekLen * cfg.hintAt) { R.hint = true; this.sync(); this.io.all(this, { t: 'hint', names: this.hintList() }); }
+      if (!R.hint2 && this.rules.hints && now >= R.endAt - R.seekLen * cfg.hint2At) { R.hint2 = true; this.sync(); this.io.all(this, { t: 'hint', rooms: this.hintRooms() }); }
+      /* stay put too long and your object starts to twitch, which the seeker can see */
+      for (const p of this.active()) if (p.role === 'hider' && !p.found && p.still) {
+        if (Math.hypot(p.x - p.still.x, p.z - p.still.z) > cfg.stillDist) p.still = { x: p.x, z: p.z, t: now };
+        const r = now - p.still.t >= cfg.restlessMs; if (r !== p.restless) { p.restless = r; p.moved = true; this.io.one(p, { t: 'restless', on: r }); }
+      }
       /* a hider who has moved to a new spot (6 m from where they last scored, at least 15 s ago) gets a bonus */
       for (const p of this.active()) if (p.role === 'hider' && !p.found && p.anchor && p.moves < cfg.moveMax && now - p.anchor.t >= cfg.moveEveryMs && Math.hypot(p.x - p.anchor.x, p.z - p.anchor.z) >= cfg.moveDist) {
         p.moves++; p.score += cfg.moveBonus; p.anchor = { x: p.x, z: p.z, t: now }; this.io.one(p, { t: 'bonus', n: cfg.moveBonus, left: cfg.moveMax - p.moves });

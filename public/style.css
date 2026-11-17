@@ -449,3 +449,4 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 
 /* hint and move-bonus line under the role card's title */
 .role-hint { margin: 4px 0 0; font: 13px/1.2 var(--display); text-transform: uppercase; color: #2f5bff; max-width: 30ch; }
+.role-hint.hot { color: #ff2d55; }

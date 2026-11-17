@@ -39,7 +39,7 @@ npm start                 # http://localhost:3000
 
 1. **Lobby.** Everyone stands in the READY ring to start (the host can also press Start). The host can choose the map
    and, in a 1v1, a stake.
-2. **Pick (12 s).** Hiders choose one of three objects to become: a big one (×1.5 points), a medium one (×1.25) or a
+2. **Pick (8 s).** Hiders choose one of three objects to become: a big one (×1.5 points), a medium one (×1.25) or a
    small one. The seeker is told they are the seeker.
 3. **Hide.** Hiders start together in the middle of the house and move as their object. The seeker waits at the gate
    with the screen covered and is sent no positions.
@@ -52,11 +52,14 @@ clutter (boxes, barrels, vases, speakers, rocks, a scarecrow and more) is scatte
 doors, spawns and other furniture. Server and browser build the map from the same seed, so they agree exactly.
 
 The map always holds 3 ordinary copies of every hider's object on floors in different rooms, plus other objects.
-You can jump (Space) onto tables, beds, sofas and other low furniture, and hide on top.
+You can jump (Space) onto tables, beds and sofas, and jump again in the air to reach shelves and counters, then hide on
+top. Everyone moves fast; you move more slowly in the air so you can land on things.
 
-- **Seeker hint:** in the last 30% of the seek, the seeker is told which objects are still hidden (the host can turn
-  this off in Rules).
-- **Move bonus:** a hider who moves to a new spot (6 m from their last one, at least 15 s later) earns +40, up to 6 times
+- **Seeker hints:** in the last 30% of the seek, the seeker is told which objects are still hidden; in the last 15%,
+  which rooms they are in. The host can turn hints off in Rules.
+- **Twitching:** a hider who stays within 2 m of the same place for 20 s starts to twitch (their object hops every couple
+  of seconds) until they move.
+- **Move bonus:** a hider who moves to a new spot (8 m from their last one, at least 10 s later) earns +40, up to 5 times
   a round.
 
 | Players | Mode | Map (default) |
@@ -68,11 +71,11 @@ You can jump (Space) onto tables, beds, sofas and other low furniture, and hide 
 
 | Map | Size | Rooms | Hide | Seek |
 |---|---|---|---|---|
-| Cabin | Small | 4 | 20 s | 1:40 |
-| House | Medium | 8 | 30 s | 2:30 |
-| Mansion | Large | 17 | 35 s | 3:00 |
+| Cabin | Small | 4 | 12 s | 1:00 |
+| House | Medium | 8 | 18 s | 1:30 |
+| Mansion | Large | 17 | 21 s | 1:48 |
 
-Scoring: seekers get 250 per catch and 300 for catching everyone. Hiders get 2 points per second hidden (times their
+Scoring: seekers get 250 per catch and 300 for catching everyone. Hiders get 3 points per second hidden (times their
 object's size bonus) and 400 for surviving.
 
 **Rules (host, in the lobby):** hiding time (short / normal / long), seeking time, what a wrong tag costs (5 / 10 / 20 s),
