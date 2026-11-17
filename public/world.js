@@ -8,7 +8,8 @@
   const LAY = globalThis.FOUND_LAYOUT, OBJ = globalThis.FOUND_OBJECTS, AV = globalThis.FOUND_AVATAR;
   const W = { homeFrame: { side: -3.4, up: 1.2 }, ok: false, on: false, mode: 'home', me: null, others: new Map(), keys: {}, joy: { x: 0, y: 0 }, zoom: 1, map: 'lobby', items: new Map(), target: null,
     blocked: () => false, onGrab: null, onRing: null, onTouch: null, onBump: null, ring: false, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches };
-  let THREE, renderer, scene, cam, sun, hemi, canvas, sky, last = 0, t0 = 0, cAz = Math.PI, cEl = 0.46, cT = null, hidden = false, userHold = 0, yaw = 0;
+  let THREE, renderer, scene, cam, sun, hemi, canvas, sky, last = 0, t0 = 0, cAz = Math.PI, cEl = 0.46, cT = null, hidden = false, userHold = 0, yaw = 0, look = 0, walking = false;
+  /* look: how far the camera has been dragged round you while you stand still. Walking brings it back behind you. */
   /* look settings, changed from the Settings panel: x and y are multipliers, dist scales how far back the camera sits */
   W.sens = { x: 1, y: 1, invY: false, dist: 1, fov: 52 };
   /* the camera always sits behind you: yaw is the way you face, the camera is at yaw + PI. Avatars face +Z at ry = 0. */
@@ -446,7 +447,7 @@
     for (const [id, x, y, z, ry, f] of list) { if (W.me && id === W.me.id) continue; const o = W.others.get(id); if (!o) continue;
       if (Math.hypot(x - o.x, z - o.z) > 12) { o.x = x; o.z = z; } o.tx = x; o.ty = y; o.tz = z; o.try = ry; o.f = f; o.moving = !!(f & 1); o.lastAt = now; }
   };
-  W.tp = function (x, z, ry) { const m = W.me; if (!m) return; m.x = x; m.z = z; m.ry = ry == null ? m.ry : ry; yaw = m.ry; cAz = yaw + Math.PI; m.y = 0; m.vy = 0; m.path = null; cT = null; if (marker) marker.visible = false; };
+  W.tp = function (x, z, ry) { const m = W.me; if (!m) return; m.x = x; m.z = z; m.ry = ry == null ? m.ry : ry; yaw = m.ry; look = 0; cAz = yaw + Math.PI; m.y = 0; m.vy = 0; m.path = null; cT = null; if (marker) marker.visible = false; };
   W.fix = function (x, z) { const m = W.me; if (m) { m.x = x; m.z = z; } };
   W.emote = function (id, e) { const o = W.me && id === W.me.id ? W.me : W.others.get(id); if (o) o.g.userData.av.userData.emote(e); };
   W.jump = function () { const m = W.me; if (m && m.grounded) { m.vy = 9.5; m.grounded = false; } };
@@ -519,7 +520,7 @@
     let drag = null;
     canvas.addEventListener('pointerdown', e => { if (W.blocked()) return; canvas.setPointerCapture(e.pointerId); drag = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false }; });
     canvas.addEventListener('pointermove', e => { if (!drag || drag.id !== e.pointerId) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
-      if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) drag.moved = true; if (drag.moved) { yaw -= dx * 0.006 * W.sens.x; cEl = Math.max(0.22, Math.min(0.95, cEl + dy * 0.0039 * W.sens.y * (W.sens.invY ? -1 : 1))); if (W.me) W.me.path = null; } });
+      if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) drag.moved = true; if (drag.moved) { const turnBy = dx * 0.006 * W.sens.x; if (walking) yaw -= turnBy; else { look -= turnBy; look = Math.atan2(Math.sin(look), Math.cos(look)); } cEl = Math.max(0.22, Math.min(0.95, cEl + dy * 0.0039 * W.sens.y * (W.sens.invY ? -1 : 1))); } });
     canvas.addEventListener('pointerup', e => { if (!drag || drag.id !== e.pointerId) return; const d = drag; drag = null; if (!d.moved && performance.now() - d.t < 400) tapTo(e.clientX, e.clientY); });
     canvas.addEventListener('wheel', e => { e.preventDefault(); W.zoom = Math.max(0.6, Math.min(1.7, W.zoom * (1 + Math.sign(e.deltaY) * 0.08))); }, { passive: false });
     let pinch = null; canvas.addEventListener('touchmove', e => { if (e.touches.length === 2) { const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); if (pinch) W.zoom = Math.max(0.6, Math.min(1.7, W.zoom * pinch / d)); pinch = d; drag = null; } }, { passive: true });
@@ -561,7 +562,8 @@
         if (d < 0.35) { m.path.shift(); m.best = 1e9; if (!m.path.length) { m.path = null; if (marker) marker.visible = false; } } else { fx2 = dx / d; fz2 = dz / d; sp = W.role === 'hider' ? 8 : 9.5;
           /* stuck? no progress toward the next corner for a while: plan again from here, once */
           if (d < (m.best || 1e9) - 0.05) { m.best = d; m.stuckT = 0; } else if ((m.stuckT = (m.stuckT || 0) + dt) > 0.9) { const goal = m.path[m.path.length - 1]; m.stuckT = 0; m.best = 1e9; const again = (m.replanned || 0) < 3 && findPath(W.mapObj, m.x, m.z, goal[0], goal[1]); m.replanned = (m.replanned || 0) + 1; m.path = again && again.length ? again : null; if (!m.path && marker) marker.visible = false; } } }
-      const moving = sp > 0;
+      const moving = sp > 0; walking = len > 0.08;
+      if (moving) look *= Math.max(0, 1 - dt * 6);   /* start walking and the camera swings back behind you */
       if (moving) {
         const nx = m.x + fx2 * sp * dt, nz = m.z + fz2 * sp * dt, c = LAY.collide(map, nx, nz, 0.6, m.x, m.z);
         m.x = c[0]; m.z = c[1];
@@ -579,7 +581,7 @@
       /* walk up to a gift box and it's yours */
       if (W.map !== 'lobby' && !W.frozen && !W.dead) W.items.forEach(it => { if (it.gift && Math.hypot(it.x - m.x, it.z - m.z) < 2.8 && now > it.pend) { it.pend = now + 1500; if (W.onGrab) W.onGrab(it.id); } });
       /* camera: always straight behind you, a little above */
-      { const behind = yaw + Math.PI, d = Math.atan2(Math.sin(behind - cAz), Math.cos(behind - cAz)); cAz += d * Math.min(1, dt * 12); }
+      { const behind = yaw + Math.PI + look, d = Math.atan2(Math.sin(behind - cAz), Math.cos(behind - cAz)); cAz += d * Math.min(1, dt * 12); }
       const prop = !!m.info.asProp, base = prop ? 10 : 13.5, dist = base * W.zoom * W.sens.dist, ty = (prop ? 1.8 : 3.4) + m.y * 0.5, v = tmpV().set(m.x, ty, m.z);
       /* a caught hider watches the seeker */
       if (W.dead) for (const o of W.others.values()) if (o.info && o.info.role === 'seeker') { v.set(o.x, 3.6, o.z); break; }
