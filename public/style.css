@@ -440,3 +440,9 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 /* lobby rows: room for the Gift button on the same line */
 .prow:not(.big) { grid-template-columns: 12px 1fr auto auto; }
 .btn.mini-gift { font-size: 13px !important; padding: 5px 10px; margin-left: 4px; box-shadow: 2px 2px 0 var(--ink); }
+
+/* the Menu button and its gear, 30% bigger */
+.menu-open-row .menu-open { font-size: 23px; padding: 13px 22px; border-width: 5px; box-shadow: 5px 5px 0 var(--ink); border-radius: 18px; display: inline-flex; align-items: center; gap: 10px; }
+.menu-open-row .menu-open kbd { font: 15px var(--display); background: #fff; color: var(--ink); border: 3px solid var(--ink); border-radius: 7px; padding: 1px 7px; }
+.menu-open-row .gear { width: 57px; height: 57px; font-size: 29px; border-width: 5px; box-shadow: 5px 5px 0 var(--ink); border-radius: 18px; }
+@media (max-width: 760px) { .menu-open-row .menu-open kbd { display: none; } }

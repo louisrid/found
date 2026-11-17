@@ -77,7 +77,7 @@ the room. Coins don't depend on the rules: hiding points stop counting at the st
 Controls: the camera always sits behind you, a little above. WASD moves (W forward, S back, A and D sideways). Standing
 still, drag to swing the camera round you (to see your face); start walking and it swings back behind you. While
 walking, drag turns you. The left/right arrows turn you, drag up and down or the up/down arrows tilt the view, wheel to zoom, Space to jump,
-E to tag, 1 to 6 for emotes, M for sound. Phones get a joystick and buttons; drag the screen to turn.
+E to tag, 1 to 6 for emotes, M opens the menu on the home screen. Phones get a joystick and buttons; drag the screen to turn.
 
 **Settings** (the gear button on the home menu, in a party and in Explore): look speed left/right and up/down, invert
 up/down, camera distance, field of view and sound. Saved in that browser.

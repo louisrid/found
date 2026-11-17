@@ -222,7 +222,7 @@
     layer(`<div class="card modal narrow settings"><div class="mhead"><h2>Settings</h2><span class="sub">Saved on this device</span></div><div class="mbody">
       ${SET_ROWS.map(row).join('')}
       <div class="rrow"><div><b>Invert up / down</b></div><div class="seg"><button class="${V.invY ? '' : 'on'}" data-a="setinv" data-v="0">Off</button><button class="${V.invY ? 'on' : ''}" data-a="setinv" data-v="1">On</button></div></div>
-      <div class="rrow"><div><b>Sound</b><small>M also toggles it</small></div><div class="seg"><button class="${muted ? '' : 'on'}" data-a="setsound" data-v="1">On</button><button class="${muted ? 'on' : ''}" data-a="setsound" data-v="0">Off</button></div></div>
+      <div class="rrow"><div><b>Sound</b></div><div class="seg"><button class="${muted ? '' : 'on'}" data-a="setsound" data-v="1">On</button><button class="${muted ? 'on' : ''}" data-a="setsound" data-v="0">Off</button></div></div>
       <div class="mfoot"><button class="btn" data-a="setreset">Reset</button><button class="btn black" data-a="close">Done</button></div></div></div>`, 'settings');
     $$('#layer input[data-set]').forEach(inp => inp.addEventListener('input', () => { const k = inp.dataset.set, v = +inp.value, r = SET_ROWS.find(q => q[0] === k); W.sens[k] = v; $('#sv-' + k).textContent = r[5](v); if (k === 'fov') W.setFov(v); saveSettings(); }));
   }
@@ -373,7 +373,7 @@
     const k = e.key.toLowerCase();
     if (k === 'e' && !e.repeat) A.tag();
     if (k === '1') send({ t: 'emote', e: 'wave' }); if (k === '2') send({ t: 'emote', e: 'cheer' }); if (k === '3') send({ t: 'emote', e: 'dance' }); if (k === '4') send({ t: 'emote', e: 'spin' }); if (k === '5') send({ t: 'emote', e: 'bow' }); if (k === '6') send({ t: 'emote', e: 'floss' });
-    if (k === 'm') { muted = !muted; try { localStorage.setItem('found-mute', muted ? '1' : '0'); } catch (er) {} toast(muted ? 'Sound off' : 'Sound on'); }
+    if (k === 'm' && !e.repeat && W.mode === 'home') A.menu();   /* M opens and closes the home menu; sound is in Settings */
   });
 
   /* ---------------- touch: joystick and jump ---------------- */
