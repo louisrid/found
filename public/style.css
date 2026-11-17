@@ -595,3 +595,28 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 @media (prefers-reduced-motion: reduce) { .it, .it::after, .it .rt, .cr-c, .legend span { animation: none !important; } }
 .cr-card .dup { margin: 6px 0 0; font: 15px var(--display); text-transform: uppercase; color: #b8860b; }
 .cr-card.r-cosmic .dup { color: #ffe14a; }
+
+/* menu fix: long one-line buttons (Gun Crate) must never widen the card; tracks may shrink and text wraps */
+.home-card { grid-template-columns: minmax(0, 1fr); min-width: 0; overflow: hidden; }
+.home-card > * { min-width: 0; }
+.home-tools { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.home-tools.one { grid-template-columns: minmax(0, 1fr); }
+.home-tools.earn { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.home-card .btn, .modal .btn { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.home-tools.one .btn small { display: block; font: 800 14px/1.2 var(--body); text-transform: none; letter-spacing: 0; margin-top: 3px; opacity: .85; }
+.home-foot { min-width: 0; flex-wrap: wrap; }
+
+/* the gun hotbar: every gun you own along the bottom, the one in your hand lifted and outlined */
+.hotbar { position: fixed; left: 50%; bottom: calc(14px + var(--safe-b)); transform: translateX(-50%); z-index: 7; display: flex; gap: 8px; max-width: min(94vw, 700px); overflow-x: auto; overflow-y: visible; padding: 14px 12px 12px; scrollbar-width: none; }
+.hotbar::-webkit-scrollbar { display: none; }
+.hotbar[hidden] { display: none; }
+.hotbar .slot { --rc: #8a8a99; flex: none; position: relative; width: 62px; height: 62px; padding: 2px; border: 4px solid var(--ink); border-radius: 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 52%, #fff), color-mix(in srgb, var(--rc) 22%, #fff)); box-shadow: 3px 3px 0 var(--ink); cursor: pointer; transition: transform .15s var(--ease); }
+.hotbar .slot img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.hotbar .slot kbd { position: absolute; top: -3px; left: 3px; font: 13px/1 var(--display); color: var(--ink); background: #fff; border: 2px solid var(--ink); border-radius: 6px; padding: 1px 4px; }
+.hotbar .slot.on { transform: translateY(-9px) scale(1.12); box-shadow: 0 0 0 3px #fff, 0 0 0 7px var(--ink), 0 0 20px 4px var(--rc); z-index: 1; }
+.hotbar .slot.r-cosmic { background: linear-gradient(135deg, #ffd1dc, #fff0b3, #c8ffd4, #b8e2ff, #e4c8ff); }
+.hotbar .slot.r-celestial { background: linear-gradient(160deg, #e6fffc, #8ff0e6 48%, #fff6c9); }
+@media (max-width: 760px) { .hotbar { bottom: calc(150px + var(--safe-b)); } .hotbar .slot { width: 54px; height: 54px; } }
+/* guns on: the hotbar sits at the very bottom, so the lobby buttons move up above it */
+.hud.guns .lobby-bar { bottom: calc(104px + var(--safe-b)); }
+@media (max-width: 760px) { .hud.guns .lobby-bar { bottom: calc(238px + var(--safe-b)); } }

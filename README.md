@@ -113,9 +113,11 @@ up/down, camera distance, field of view and sound. Saved in that browser.
 
 Nothing is sold for real money.
 
-## Guns, health and Gun Crates
-The lobby is an open lawn. The admin (`ADMIN_CODE` env var on the server, entered once in the game's **Admin** button) switches **Guns** on for the party. While guns are on: 100 HP, health bars over every player, hold F / the FIRE button / right-click to shoot (hitscan, server-checked, auto-aim to whoever is in front, with a ground aim line), 150 coins a kill, respawn after 3 s with a 2 s shield. Shots only count in the lobby, never during a round.
-Income: every connected player earns **1,000 coins a minute** (`CFG.payCoins` 100 every 6 s). A **Gun Crate** is 500 coins and gives a random gun you don't own, with a shake, a spinning strip and a rarity card (more effects each tier up to Mythic). 17 guns in `public/guns.js` (stats and voxel models); shop rows in `catalog.js`. Uncommon is a new rarity (500 coins in the shop).
+## Guns: the lobby is a free for all
+Every party lobby is an open lawn where **guns are on by default** (the admin can switch them off; `ADMIN_CODE` env var, entered once with the **Admin** button). Hold **F**, the **FIRE** button or **right-click** to shoot; number keys **1-9** (or a tap) pick a gun from the **hotbar** at the bottom. 100 HP, 3 s respawn with a 2 s shield, **barrel roll** (double-tap A or D) dodges shots.
+- A kill pays **10,000 coins**; dying costs **3,000** (or whatever you have). Killing the same player again within 20 s pays nothing, so two friends cannot farm each other (`CFG.killCoins`, `deathCoins`, `repeatKillMs`).
+- Things spawn on the grass: **hearts** (+50 HP), **shields** (5 s), **coin bags** (+1,000) and **rage orbs** (double damage for 8 s), up to 9 at a time (`CFG.pickupMs`, `pickupMax`).
+- Income: every connected player earns **1,000 coins a minute**. The **Gun Crate** lives in the shop's Guns tab: 500 coins, rolls a rarity by its odds (Common to Cosmic), duplicates pay 10% of the shop price back. `node tests/curve.mjs` prints the power curve and how long each tier takes to earn.
 
 ## Barrel roll
 Tap **A** or **D** twice quickly (on a phone: flick the joystick left or right twice) to barrel roll that way: a fast dash with a full tumble, about 0.4 s, one per second. While rolling you dodge gun shots (the server allows one 0.45 s roll per 0.8 s). It works in the lobby and Explore, not during a round.

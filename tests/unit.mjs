@@ -256,18 +256,33 @@ test('everyone connected earns 1,000 coins a minute', () => {
 test('guns: shooting, health, kills, respawn, and only when switched on in the lobby', () => {
   const { pa, ps, sent, adv } = party(3), [a, b, c] = ps; for (const p of ps) { p.x = 0; p.z = 0; }
   const place = () => { a.x = 0; a.z = 0; b.x = 0; b.z = 10; c.x = 30; c.z = 0; };
+  assert.ok(pa.state().guns, 'a party is a free for all from the start'); pa.setGuns(false); assert.ok(!pa.state().guns);
   place(); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 100); assert.ok(!sent.some(m => m[1].t === 'shot'), 'guns are off');
   pa.setGuns(true); assert.ok(pa.state().guns); assert.equal(pa.state().players[1].hp, 100);
   place(); a.prof.gun = 'g_pop'; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 86); assert.equal(c.hp, 100); const sh = sent.filter(m => m[1].t === 'shot').pop()[1]; assert.equal(sh.id, a.id); assert.equal(sh.e[0][2], b.id);
   pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 86, 'too soon: the gun is still cooling'); adv(400);
   pa.shoot(a, { ry: Math.PI }); assert.equal(b.hp, 86, 'shooting the other way misses'); adv(400); pa.shoot(a, { ry: Math.PI / 2 }); assert.equal(c.hp, 86, 'c is 30 away along +x, inside the pistol range of 42'); c.hp = 100; c.x = 60; adv(400); pa.shoot(a, { ry: Math.PI / 2 }); assert.equal(c.hp, 100, 'out of range'); c.x = 30;
   /* the kill pays, the dead cannot move or shoot, then they come back with a shield */
-  const coins = a.prof.coins; let n = 0; while (!b.deadAt && n++ < 20) { adv(400); pa.shoot(a, { ry: 0 }); } assert.ok(b.deadAt && b.hp === 0); assert.equal(a.prof.coins, coins + CFG.killCoins); assert.ok(sent.some(m => m[1].t === 'kill' && m[1].id === b.id));
+  const coins = a.prof.coins; let n = 0; while (!b.deadAt && n++ < 20) { adv(400); pa.shoot(a, { ry: 0 }); } assert.ok(b.deadAt && b.hp === 0); assert.equal(CFG.killCoins, 10000); assert.equal(a.prof.coins, coins + 10000, 'a kill pays 10,000'); assert.equal(b.prof.coins, 0, 'the victim lost what they had, up to 3,000 (they had 300)'); assert.ok(sent.some(m => m[1].t === 'kill' && m[1].id === b.id));
   const bx = b.x; pa.move(b, { x: 5, z: 5, y: 0, ry: 0 }); assert.equal(b.x, bx); adv(400); pa.shoot(b, { ry: 0 }); assert.ok(a.hp === 100);
   adv(CFG.respawnMs + 50); assert.ok(!b.deadAt && b.hp === 100 && b.shield > 0); assert.ok(sent.some(m => m[1].t === 'spawned' && m[1].id === b.id));
   place(); b.shield = 0; a.prof.gun = 'g_cosmic'; a.prof.own.push('g_cosmic'); adv(400); pa.shoot(a, { ry: 0 }); { const g = G0.BY.g_cosmic; assert.ok(b.hp < 100 && b.hp >= 100 - g.dmg * g.pellets, 'a spread gun lands some or all pellets: ' + b.hp); }
   a.prof.gun = 'g_rail'; adv(1500); place(); b.hp = 100; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 86, 'a gun you do not own fires as the starter pistol (14)');
   pa.setGuns(false); assert.ok(!pa.state().guns);
+});
+test('free for all: a kill pays 10,000, dying costs 3,000, the same victim twice in 20 s pays once, and pickups spawn and heal', () => {
+  const { pa, ps, sent, adv } = party(3), [a, b, c] = ps; pa.setGuns(true); a.prof.gun = 'g_pop';
+  const place = () => { a.x = 0; a.z = 0; b.x = 0; b.z = 10; c.x = 30; c.z = 0; }, kill = v => { let n = 0; while (!v.deadAt && n++ < 40) { adv(400); pa.shoot(a, { ry: v === b ? 0 : Math.PI / 2 }); } assert.ok(v.deadAt); };
+  b.prof.coins = 5000; place(); const a0 = a.prof.coins; kill(b); assert.equal(a.prof.coins, a0 + 10000); assert.equal(b.prof.coins, 2000, 'lost 3,000'); const k1 = sent.filter(m => m[1].t === 'kill').pop()[1]; assert.equal(k1.coins, 10000); assert.equal(k1.lost, 3000);
+  adv(CFG.respawnMs + 50); place(); b.shield = 0; kill(b); assert.equal(a.prof.coins, a0 + 10000, 'the same victim again within 20 s pays nothing'); assert.equal(sent.filter(m => m[1].t === 'kill').pop()[1].coins, 0); assert.equal(b.prof.coins, 0, 'but they still lose coins, down to nothing');
+  adv(25000); place(); c.shield = 0; kill(c); assert.equal(a.prof.coins, a0 + 20000, 'a different victim pays');
+  /* pickups */
+  adv(CFG.respawnMs + 50); for (const p of ps) { p.x = 0; p.z = 0; p.shield = 0; p.hp = 100; } pa.pickups = []; pa.pickAt = 0; adv(10); assert.equal(pa.pickups.length, 1); assert.deepEqual(Object.keys(pa.state().pk[0]).length, 4);
+  for (let i = 0; i < 30; i++) adv(CFG.pickupMs + 10); assert.ok(pa.pickups.length <= CFG.pickupMax && pa.pickups.length >= 5, 'they keep spawning up to a limit: ' + pa.pickups.length);
+  const k = { id: 99, kind: 'heal', x: 3, z: 3 }; pa.pickups.push(k); b.x = 3; b.z = 3; b.hp = 100; adv(100); assert.ok(pa.pickups.includes(k), 'a full-health player leaves a heart'); b.hp = 30; adv(100); assert.ok(!pa.pickups.includes(k) && b.hp === 80, 'a heart heals 50');
+  const cn = { id: 100, kind: 'coins', x: 3, z: 3 }; pa.pickups.push(cn); const c0 = b.prof.coins; adv(100); assert.equal(b.prof.coins, c0 + 1000);
+  const rg = { id: 101, kind: 'rage', x: 3, z: 3 }; pa.pickups.push(rg); adv(100); assert.ok(b.rageUntil > pa.now()); b.x = 0; b.z = 10; a.x = 0; a.z = 0; c.x = 30; c.z = 30; a.hp = 100; adv(400); pa.shoot(b, { ry: Math.PI }); assert.equal(a.hp, 100 - 14 * 2, 'rage doubles damage');
+  const sh = { id: 102, kind: 'shield', x: 3, z: 3 }; pa.pickups.push(sh); b.x = 3; b.z = 3; adv(100); assert.ok(b.shield > pa.now(), 'a shield pickup'); pa.setGuns(false); assert.equal(pa.pickups.length, 0, 'switching guns off clears them');
 });
 test('a barrel roll dodges shots, lasts under half a second and cannot be spammed', () => {
   const { pa, ps, adv, sent } = party(2), [a, b] = ps; pa.setGuns(true); a.x = 0; a.z = 0; b.x = 0; b.z = 9; a.prof.gun = 'g_pop';

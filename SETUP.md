@@ -36,8 +36,8 @@ Run one instance only: parties live in memory.
 
 ## Guns and crates
 - **Double-tap A or D** to barrel roll sideways (dodges shots). On a phone, flick the joystick left or right twice.
-- Admin switches guns on in the lobby. Then **hold F**, hold the **FIRE** button or hold **right-click** to shoot; shots aim at whoever is in front of you. 100 HP, 150 coins per kill, back after 3 seconds.
-- Everyone earns **1,000 coins a minute** while connected. A **Gun Crate** costs 500 coins and always gives a gun you don't own (Common, Uncommon, Rare, Epic, Legendary, Mythic). 17 guns; the Locker and Shop have a **Guns** tab.
+- Guns are on in every lobby by default (the admin can switch them off). **Hold F**, hold the **FIRE** button or hold **right-click** to shoot; shots aim at whoever is in front of you. 100 HP, 10,000 coins per kill and 3,000 lost when you die, with hearts, shields, coin bags and rage orbs spawning on the grass, back after 3 seconds.
+- Everyone earns **1,000 coins a minute** while connected. The **Gun Crate** is in the shop (Guns tab): 500 coins, rolls Common to Cosmic by its odds, duplicates pay 10% back. 27 guns; the Locker and Shop have a **Guns** tab.
 
 ## Checking it works
-`npm test` runs 40 unit and 31 integration checks. `tests/browser.py` plays a full 1v1 in Chrome (README has details).
+`npm test` runs 41 unit and 31 integration checks. `tests/browser.py` plays a full 1v1 in Chrome (README has details).

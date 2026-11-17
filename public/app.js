@@ -53,7 +53,8 @@
       if (S.practice && m.phase === 'lobby' && m.players.length === 1) { S.practice = false; send({ t: 'start' }); }
       for (const p of m.players) W.upsert(deco(p));
       W.keep(m.players.map(p => p.id)); W.setMe(meInfo());
-      W.gunsOn = gunsOn(); if (W.gunsOn) { for (const p of m.players) { W.setHp(p.id, p.hp); W.setDead(p.id, !!p.dead); } S.dead = !!(myRow() || {}).dead; } else { S.dead = false; W.clearDead(); }
+      W.gunsOn = gunsOn(); if (W.gunsOn) { for (const p of m.players) { W.setHp(p.id, p.hp); W.setDead(p.id, !!p.dead); } S.dead = !!(myRow() || {}).dead; const r0 = myRow(); if (r0 && r0.hp != null && !S.dead) S.hp = r0.hp; } else { S.dead = false; W.clearDead(); }
+      W.setPickups(W.gunsOn ? m.pk || [] : []);
       const r = myRow() || {}; W.role = live(m.phase) ? r.role : null; W.seeking = m.phase === 'seek'; W.blind = m.phase === 'hide' && r.role === 'seeker'; W.dead = live(m.phase) && !!r.found; W.frozen = W.blind || m.phase === 'results' || W.dead || !!S.dead;
       if (prev !== m.phase) phaseChanged(prev, m.phase);
       paintHud(); paintRole(); paintGun();
@@ -102,8 +103,10 @@
       W.killed(m.id); const mine = S.me && m.by === S.me.id, me = S.me && m.id === S.me.id;
       feed(`<b>${esc(playerName(m.by))}</b> ▸ ${esc(playerName(m.id))}`);
       if (me) { S.dead = true; W.frozen = true; S.deadAt = Date.now(); SFX.nope(); paintGun(); }
-      else if (mine) { SFX.win(); toast(`+${m.coins} coins`); }
+      else if (mine) { SFX.win(); toast(m.coins ? `+${fmt(m.coins)} coins` : 'Same victim again: no reward yet'); }
+      if (me && m.lost) toast(`You lost ${fmt(m.lost)} coins`);
     },
+    pk(m) { W.pickupGot(m); if (S.me && m.by === S.me.id) { SFX.pop(); toast(({ heal: '+50 HP', shield: 'Shield for 5 seconds', coins: '+1,000 coins', rage: 'Rage: double damage for 8 seconds' })[m.kind] || ''); } },
     spawned(m) { W.spawned(m.id); if (S.me && m.id === S.me.id) { S.dead = false; S.hp = GUNS.HP; W.frozen = false; paintGun(); } },
     bought(m) { SFX.pop(); toast(`Bought ${m.r.name}.`); S.sel = null; },
     left() { leaveParty(); },
@@ -174,7 +177,7 @@
       const stakeB = P.mode !== 'duel' ? '' : isHost ? `<button class="btn" data-a="stake">Stake: ${P.stake ? fmt(P.stake) : 'none'}</button>` : P.stake ? `<div class="hint"><span>Stake: <b>${fmt(P.stake)}</b> each</span></div>` : '';
       const me = S.me || {}, gunB = me.admin ? `<button class="btn ${P.guns ? 'black' : ''}" data-a="guns">Guns: ${P.guns ? 'ON' : 'OFF'}</button>` : /louis/i.test(me.name || '') ? `<button class="btn" data-a="admin">Admin</button>` : '';
       lb.hidden = false;
-      lb.innerHTML = (P.guns ? `<div class="hint guns-hint"><span>Guns on<small>Hold F or FIRE · 150 coins a kill</small></span></div>` : '') + gunB + `<button class="btn" data-a="crate">Gun Crate ${fmt(C.CRATE.price)}</button><div class="hint"><span><b>${how}</b><br>${P.readyAt ? 'Starting…' : `Stand in the READY ring to start · ${ready}/${n}`}</span></div>${mapB}${stakeB}<button class="btn" data-a="rules">Rules${isHost ? '' : ' (view)'}</button>` + (isHost ? `<button class="btn black" data-a="start">Start</button>` : '');
+      lb.innerHTML = (P.guns ? `<div class="hint guns-hint"><span>Guns on<small>Free for all · +10,000 a kill · −3,000 if you die</small></span></div>` : '') + gunB + `<div class="hint"><span><b>${how}</b><br>${P.readyAt ? 'Starting…' : `Stand in the READY ring to start · ${ready}/${n}`}</span></div>${mapB}${stakeB}<button class="btn" data-a="rules">Rules${isHost ? '' : ' (view)'}</button>` + (isHost ? `<button class="btn black" data-a="start">Start</button>` : '');
     } else if (!S.tipUntil || Date.now() > S.tipUntil) lb.hidden = true;
   }
   function tip(html, ms) { const lb = $('#lobby-bar'); lb.hidden = false; lb.innerHTML = `<div class="hint"><span>${html}</span></div>`; S.tipUntil = Date.now() + ms; setTimeout(() => { if (Date.now() >= S.tipUntil && S.phase !== 'lobby') lb.hidden = true; }, ms + 50); }
@@ -373,6 +376,21 @@
   }
   /* the FIRE button shows the gun and fills back in as it cools; it lights up while held */
   (function cool() { requestAnimationFrame(cool); const fb = $('#fire'); if (fb.hidden) return; const d = myGun(); fb.style.setProperty('--cd', Math.min(1, (performance.now() - (S.fireAt || 0)) / d.ms).toFixed(2)); fb.classList.toggle('held', !!S.fireHeld); })();
+  /* the hotbar: every gun you own, strongest last. Keys 1-9 (or a tap) put one in your hand; it shows whenever guns are on */
+  const hotGuns = () => C.ITEMS.filter(r => r[1] === 'gun' && owned(r[0])).map(r => r[0]).sort((a, b) => RANK[C.BY[a].rarity] - RANK[C.BY[b].rarity]);
+  function selectGun(id) { if (!id || !owned(id)) return; if (S.me.gun !== id) { wear('gun', id); SFX.click(); } paintGun(); paintHotbar(true); }
+  let hotSig = '';
+  function paintHotbar(force) {
+    const hb = $('#hotbar'), show = gunsOn() && !(S.layer && S.layer !== 'results') && !S.reveal && !S.crate && !!S.me;
+    if (hb.hidden === show) hb.hidden = !show; if (!show) { hotSig = ''; return; }
+    const list = hotGuns(), cur = S.me.gun || GUNS.START, sig = list.join() + '|' + cur;
+    if (!force && sig === hotSig) return; const rebuilt = hotSig.split('|')[0] !== list.join(); hotSig = sig;
+    if (rebuilt || !hb.children.length) { hb.innerHTML = list.map((id, i) => `<button class="slot r-${C.BY[id].rarity}" style="--rc:${rcol(C.BY[id].rarity)}" data-g="${id}" title="${esc(C.BY[id].name)}">${i < 9 ? `<kbd>${i + 1}</kbd>` : ''}<img alt=""></button>`).join('');
+      const imgs = [...hb.querySelectorAll('button')]; (function fill() { const b = imgs.shift(); if (!b) return; b.querySelector('img').src = W.itemIcon(b.dataset.g, 'gun'); requestAnimationFrame(fill); })(); }
+    hb.querySelectorAll('.slot').forEach(b => { const on = b.dataset.g === cur; b.classList.toggle('on', on); if (on && rebuilt !== undefined) b.scrollIntoView({ block: 'nearest', inline: 'center' }); });
+  }
+  $('#hotbar').addEventListener('click', e => { const b = e.target.closest('.slot'); if (b) selectGun(b.dataset.g); });
+  setInterval(() => paintHotbar(), 250);
   setInterval(() => { if (!S.dead) return; const left = Math.max(0, Math.ceil((3000 - (Date.now() - (S.deadAt || 0))) / 1000)); const e = $('#rip-n'); if (e) e.textContent = left; }, 200);
   $('#fire').addEventListener('pointerdown', e => { e.preventDefault(); S.fireHeld = true; fire(); });
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('#fire').addEventListener(ev, () => { S.fireHeld = false; });
@@ -483,6 +501,7 @@
     const k = e.key.toLowerCase();
     if (k === 'e' && !e.repeat) A.tag();
     if (k === 'f') { S.fireHeld = true; fire(); }
+    if (gunsOn() && /^[1-9]$/.test(k)) { selectGun(hotGuns()[+k - 1]); return; }   /* with guns on, the number keys pick a gun instead of an emote */
     if (k === '1') send({ t: 'emote', e: 'wave' }); if (k === '2') send({ t: 'emote', e: 'cheer' }); if (k === '3') send({ t: 'emote', e: 'dance' }); if (k === '4') send({ t: 'emote', e: 'spin' }); if (k === '5') send({ t: 'emote', e: 'bow' }); if (k === '6') send({ t: 'emote', e: 'floss' });
     if (k === 'm' && !e.repeat && W.mode === 'home') A.menu();   /* M opens and closes the home menu; sound is in Settings */
   });
