@@ -9,6 +9,8 @@
   const W = { homeFrame: { side: -3.4, up: 1.2 }, ok: false, on: false, mode: 'home', me: null, others: new Map(), keys: {}, joy: { x: 0, y: 0 }, zoom: 1, map: 'lobby', items: new Map(), target: null,
     blocked: () => false, onGrab: null, onRing: null, onTouch: null, onBump: null, ring: false, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches };
   let THREE, renderer, scene, cam, sun, hemi, canvas, sky, last = 0, t0 = 0, cAz = Math.PI, cEl = 0.46, cT = null, hidden = false, userHold = 0, yaw = 0;
+  /* look settings, changed from the Settings panel: x and y are multipliers, dist scales how far back the camera sits */
+  W.sens = { x: 1, y: 1, invY: false, dist: 1, fov: 52 };
   /* the camera always sits behind you: yaw is the way you face, the camera is at yaw + PI. Avatars face +Z at ry = 0. */
   const groups = {}; const anim = []; const fx = []; const fades = [];
   const PC = ['#ff4b3e', '#2f7bff', '#16c47f', '#ffb000', '#9b4dff', '#ff7a1a', '#ff4fa3', '#00b8d9'];
@@ -517,7 +519,7 @@
     let drag = null;
     canvas.addEventListener('pointerdown', e => { if (W.blocked()) return; canvas.setPointerCapture(e.pointerId); drag = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false }; });
     canvas.addEventListener('pointermove', e => { if (!drag || drag.id !== e.pointerId) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
-      if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) drag.moved = true; if (drag.moved) { yaw -= dx * 0.006; cEl = Math.max(0.22, Math.min(0.95, cEl + dy * 0.003)); if (W.me) W.me.path = null; } });
+      if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) drag.moved = true; if (drag.moved) { yaw -= dx * 0.006 * W.sens.x; cEl = Math.max(0.22, Math.min(0.95, cEl + dy * 0.0039 * W.sens.y * (W.sens.invY ? -1 : 1))); if (W.me) W.me.path = null; } });
     canvas.addEventListener('pointerup', e => { if (!drag || drag.id !== e.pointerId) return; const d = drag; drag = null; if (!d.moved && performance.now() - d.t < 400) tapTo(e.clientX, e.clientY); });
     canvas.addEventListener('wheel', e => { e.preventDefault(); W.zoom = Math.max(0.6, Math.min(1.7, W.zoom * (1 + Math.sign(e.deltaY) * 0.08))); }, { passive: false });
     let pinch = null; canvas.addEventListener('touchmove', e => { if (e.touches.length === 2) { const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); if (pinch) W.zoom = Math.max(0.6, Math.min(1.7, W.zoom * pinch / d)); pinch = d; drag = null; } }, { passive: true });
@@ -551,7 +553,7 @@
       let ix = 0, iz = 0;
       if (!locked && W.mode !== 'off' && !W.frozen && !W.typing) { if (K2.w) iz -= 1; if (K2.s) iz += 1; if (K2.a) ix -= 1; if (K2.d) ix += 1; ix += W.joy.x; iz += W.joy.y; }
       /* arrows turn the camera and tilt it; WASD walks */
-      if (!locked) { const turn = (K2.arrowleft ? 1 : 0) - (K2.arrowright ? 1 : 0), tilt = (K2.arrowup ? 1 : 0) - (K2.arrowdown ? 1 : 0); if (turn) { yaw += dt * 2.4 * turn; m.path = null; } if (tilt) cEl = Math.max(0.22, Math.min(0.95, cEl + dt * 0.8 * tilt)); }
+      if (!locked) { const turn = (K2.arrowleft ? 1 : 0) - (K2.arrowright ? 1 : 0), tilt = (K2.arrowup ? 1 : 0) - (K2.arrowdown ? 1 : 0); if (turn) { yaw += dt * 2.4 * turn * W.sens.x; m.path = null; } if (tilt) cEl = Math.max(0.22, Math.min(0.95, cEl + dt * 1.04 * tilt * W.sens.y * (W.sens.invY ? -1 : 1))); }
       let len = Math.hypot(ix, iz); if (len > 1) { ix /= len; iz /= len; len = 1; }
       let fx2 = 0, fz2 = 0, sp = 0;
       if (len > 0.08) { m.path = null; if (marker) marker.visible = false; sp = (W.role === 'hider' ? 8 : K2.shift ? 12.5 : 9) * Math.min(1, len); fx2 = Math.sin(yaw) * -iz - Math.cos(yaw) * ix; fz2 = Math.cos(yaw) * -iz + Math.sin(yaw) * ix; const l = Math.hypot(fx2, fz2) || 1; fx2 /= l; fz2 /= l; }
@@ -578,7 +580,7 @@
       if (W.map !== 'lobby' && !W.frozen && !W.dead) W.items.forEach(it => { if (it.gift && Math.hypot(it.x - m.x, it.z - m.z) < 2.8 && now > it.pend) { it.pend = now + 1500; if (W.onGrab) W.onGrab(it.id); } });
       /* camera: always straight behind you, a little above */
       { const behind = yaw + Math.PI, d = Math.atan2(Math.sin(behind - cAz), Math.cos(behind - cAz)); cAz += d * Math.min(1, dt * 12); }
-      const prop = !!m.info.asProp, base = prop ? 10 : 13.5, dist = base * W.zoom, ty = (prop ? 1.8 : 3.4) + m.y * 0.5, v = tmpV().set(m.x, ty, m.z);
+      const prop = !!m.info.asProp, base = prop ? 10 : 13.5, dist = base * W.zoom * W.sens.dist, ty = (prop ? 1.8 : 3.4) + m.y * 0.5, v = tmpV().set(m.x, ty, m.z);
       /* a caught hider watches the seeker */
       if (W.dead) for (const o of W.others.values()) if (o.info && o.info.role === 'seeker') { v.set(o.x, 3.6, o.z); break; }
       if (!cT) cT = v.clone(); cT.lerp(v, 0.16);
@@ -657,6 +659,7 @@
     W.mapObj = LAY.lobby; W.mapKey = 'lobby'; setTimeout(() => { gridFor(LAY.lobby); }, 300);
     return true;
   };
+  W.setFov = f => { if (cam) { cam.fov = f; cam.updateProjectionMatrix(); } };
   W.cam = () => cam; W.renderer = () => renderer; W.scene = () => scene;
 
   /* ---------------- studio: icons for objects and cosmetics, and a live stage for gift reveals ---------------- */

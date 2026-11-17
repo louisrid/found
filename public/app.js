@@ -208,6 +208,23 @@
     const rows = RULE_ROWS.map(([k, name, opts, why]) => `<div class="rrow"><div><b>${name}</b><small>${why}</small></div><div class="seg">${(k === 'hide' ? tl(T.hide) : k === 'seek' ? tl(T.seek) : opts).map(([v, l]) => `<button class="${R[k] === v ? 'on' : ''}" ${host ? `data-a="rule" data-v="${k}:${v}"` : 'disabled'}>${l}</button>`).join('')}</div></div>`).join('');
     layer(`<div class="card modal narrow"><div class="mhead"><h2>Rules</h2><span class="sub">${host ? 'You are the host' : 'Set by the host'}</span></div><div class="mbody">${rows}<div class="mfoot"><button class="btn black" data-a="close">Done</button></div></div></div>`, 'rules');
   }
+  /* settings: look speed, camera, sound. Saved in this browser only. */
+  const SET0 = { x: 1, y: 1, invY: false, dist: 1, fov: 52 };
+  function loadSettings() { let v = {}; try { v = JSON.parse(localStorage.getItem('found-settings') || '{}') || {}; } catch (e) {} Object.assign(W.sens, SET0, v); W.setFov(W.sens.fov); }
+  function saveSettings() { try { localStorage.setItem('found-settings', JSON.stringify(W.sens)); } catch (e) {} }
+  const SET_ROWS = [['x', 'Look left / right', 0.3, 3, 0.1, v => v.toFixed(1) + '×'], ['y', 'Look up / down', 0.3, 3, 0.1, v => v.toFixed(1) + '×'],
+    ['dist', 'Camera distance', 0.7, 1.5, 0.05, v => Math.round(v * 100) + '%'], ['fov', 'Field of view', 40, 80, 1, v => v + '°']];
+  /* a rarity colour mixed 72% with white: the background of an item card */
+  const pastel = hex => { const n = parseInt(String(hex).slice(1), 16), mix = c => Math.round(c + (255 - c) * 0.72); return `rgb(${mix(n >> 16 & 255)},${mix(n >> 8 & 255)},${mix(n & 255)})`; };
+  function showSettings() {
+    const V = W.sens, row = ([k, name, lo, hi, st, f]) => `<div class="srow"><div class="shead"><b>${name}</b><span id="sv-${k}">${f(V[k])}</span></div><input type="range" min="${lo}" max="${hi}" step="${st}" value="${V[k]}" data-set="${k}" aria-label="${name}"></div>`;
+    layer(`<div class="card modal narrow settings"><div class="mhead"><h2>Settings</h2><span class="sub">Saved on this device</span></div><div class="mbody">
+      ${SET_ROWS.map(row).join('')}
+      <div class="rrow"><div><b>Invert up / down</b></div><div class="seg"><button class="${V.invY ? '' : 'on'}" data-a="setinv" data-v="0">Off</button><button class="${V.invY ? 'on' : ''}" data-a="setinv" data-v="1">On</button></div></div>
+      <div class="rrow"><div><b>Sound</b><small>M also toggles it</small></div><div class="seg"><button class="${muted ? '' : 'on'}" data-a="setsound" data-v="1">On</button><button class="${muted ? 'on' : ''}" data-a="setsound" data-v="0">Off</button></div></div>
+      <div class="mfoot"><button class="btn" data-a="setreset">Reset</button><button class="btn black" data-a="close">Done</button></div></div></div>`, 'settings');
+    $$('#layer input[data-set]').forEach(inp => inp.addEventListener('input', () => { const k = inp.dataset.set, v = +inp.value, r = SET_ROWS.find(q => q[0] === k); W.sens[k] = v; $('#sv-' + k).textContent = r[5](v); if (k === 'fov') W.setFov(v); saveSettings(); }));
+  }
   function layer(html, name) { if (S.stage) { S.stage.stop(); S.stage = null; } const L = $('#layer'); L.innerHTML = html; L.hidden = false; S.layer = name; W.keys = {}; }
   function closeLayer(name) { if (name && S.layer !== name) return; const L = $('#layer'); if (S.stage) { S.stage.stop(); S.stage = null; } L.hidden = true; L.innerHTML = ''; S.layer = null; }
   W.blocked = () => !!S.layer && S.layer !== 'results' || !!S.reveal;
@@ -261,14 +278,16 @@
       let list = C.ITEMS.filter(r => r[1] === wTab).map(r => C.BY[r[0]]).filter(i => shop ? !owned(i.id) : owned(i.id)).sort((a, b) => RANK[a.rarity] - RANK[b.rarity]);
       const cur = wTab === 'pet' ? me.pet : me.look[wTab];
       const none = !shop && wTab !== 'outfit' ? `<div class="it${!cur ? ' on' : ''}" data-a="wear" data-v=""><i class="none"></i><b>None</b></div>` : '';
-      const tile = i => `<div style="border-color:${C.RCOL[i.rarity]}" class="it${(shop ? S.sel === i.id : cur === i.id) ? ' on' : ''}" data-a="${shop ? 'pick' : 'wear'}" data-v="${i.id}"><img data-icon="${i.id}" data-slot="${i.slot}" alt=""><b>${esc(i.name)}</b>${shop ? `<span class="p">${fmt(C.PRICE[i.rarity])}</span>` : ''}<i class="r" style="background:${C.RCOL[i.rarity]}">${C.RNAME[i.rarity]}</i></div>`;
+      const tile = i => `<div style="background:${pastel(C.RCOL[i.rarity])}" class="it${(shop ? S.sel === i.id : cur === i.id) ? ' on' : ''}" data-a="${shop ? 'pick' : 'wear'}" data-v="${i.id}"><img data-icon="${i.id}" data-slot="${i.slot}" alt=""><b>${esc(i.name)}</b>${shop ? `<span class="p">${fmt(C.PRICE[i.rarity])}</span>` : ''}</div>`;
       const box = shop ? `<div class="boxbar"><img src="${W.giftIcon('box')}" alt=""><div><b>Mystery Box${me.boxes ? ' ×' + me.boxes : ''}</b><span>A random item you don't own.</span></div><div class="boxbtns">${me.daily ? '<button class="btn black" data-a="daily">Free today</button>' : ''}${me.boxes ? '<button class="btn black" data-a="open">Open</button>' : ''}<button class="btn" data-a="buybox"${me.coins >= C.BOX.price ? '' : ' disabled'}>Buy ${fmt(C.BOX.price)}</button></div></div>` : '';
       const legend = shop ? `<div class="legend">${['common', 'rare', 'epic', 'legendary', 'mythic'].map(r => `<span style="background:${C.RCOL[r]}">${C.RNAME[r]} ${fmt(C.PRICE[r])}</span>`).join('')}</div><p class="earn-line">Get coins by playing rounds, collecting idle coins, the daily spin and Odd one out.</p>` : '';
       inner = box + legend + (list.length || none ? `<div class="grid">${none}${list.map(tile).join('')}</div>` : `<p class="big">${shop ? 'You own all of these.' : 'Nothing here yet. Visit the shop.'}</p>`);
     }
     body.innerHTML = tabs + inner; paintBuy();
     const job = ++iconJob, imgs = $$('#lk-body img[data-icon]');
-    const step = () => { if (job !== iconJob) return; const t0 = performance.now(); while (imgs.length && performance.now() - t0 < 24) { const im = imgs.shift(); im.src = W.itemIcon(im.dataset.icon, im.dataset.slot); } if (imgs.length) requestAnimationFrame(step); };
+    /* cards on screen first, then the rest in order */
+    const box = $('#lk-body'), seen = im => { const r = im.getBoundingClientRect(), b = box.getBoundingClientRect(); return r.bottom > b.top - 60 && r.top < b.bottom + 60; };
+    const step = () => { if (job !== iconJob) return; const t0 = performance.now(); while (imgs.length && performance.now() - t0 < 24) { let k = imgs.findIndex(seen); if (k < 0) k = 0; const im = imgs.splice(k, 1)[0]; im.src = W.itemIcon(im.dataset.icon, im.dataset.slot); } if (imgs.length) requestAnimationFrame(step); };
     requestAnimationFrame(step);
   }
   /* shop: the item you tapped is tried on, with its price and a Buy button under the figure */
@@ -308,6 +327,10 @@
     create() { send({ t: 'create' }); SFX.click(); },
     join() { const c = $('#code').value.trim().toUpperCase(); if (!/^[A-Z]{4}$/.test(c)) { toast('Party codes are 4 letters.'); return; } send({ t: 'join', code: c }); SFX.click(); },
     leave() { send({ t: 'leave' }); },
+    settings() { showSettings(); SFX.click(); },
+    setinv(v) { W.sens.invY = v === '1'; saveSettings(); showSettings(); },
+    setsound(v) { muted = v !== '1'; try { localStorage.setItem('found-mute', muted ? '1' : '0'); } catch (e) {} showSettings(); SFX.click(); },
+    setreset() { Object.assign(W.sens, SET0); W.setFov(SET0.fov); saveSettings(); showSettings(); },
     /* fold the home menu away to walk the plaza, or bring it back */
     menu() { const h = $('#home'), fold = !W.menuHidden; W.menuHidden = fold; h.classList.toggle('folded', fold); $('#menu-open').hidden = !fold; touchControls(fold); SFX.click(); },
     /* practice: a party of one starts straight away; the server fills it with computer hiders */
@@ -367,7 +390,7 @@
   /* ---------------- start ---------------- */
   const ok = W.init($('#world'));
   if (!ok) { $('#boot-msg').textContent = 'FOUND needs WebGL. Try another browser.'; return; }
-  W.mode = 'home';
+  W.mode = 'home'; loadSettings();
   const fontsReady = document.fonts ? Promise.race([document.fonts.load('40px "Fredoka Bold"'), new Promise(r => setTimeout(r, 1500))]) : Promise.resolve();
   fontsReady.then(connect);
   globalThis.FOUND_APP = { S, send, W };   // handy in the console and for tests

@@ -18,6 +18,7 @@
 <!-- home: name, create or join a party, shop and locker -->
 <section id="home" class="home" hidden>
   <div class="card home-card">
+    <button class="btn icon gear home-gear" data-a="settings" title="Settings" aria-label="Settings">&#x2699;</button>
     <button class="btn icon home-min" data-a="menu" title="Hide menu and walk around" aria-label="Hide menu">&#x2013;</button>
     <img class="logo" src="logo.svg?v=__V__" alt="FOUND">
     <p class="tag">Hide as an object. Don't get found.</p>
@@ -45,11 +46,12 @@
 </section>
 
 <!-- the home menu folded away: walk the plaza; tap to bring the menu back -->
-<button id="menu-open" class="btn menu-open" data-a="menu" hidden>Menu</button>
+<div id="menu-open" class="menu-open-row" hidden><button class="btn menu-open" data-a="menu">Menu</button><button class="btn icon gear" data-a="settings" title="Settings" aria-label="Settings">&#x2699;</button></div>
 
 <!-- explore: walk any map alone, no party -->
 <div id="roam" class="roam" hidden>
   <button class="btn icon" data-a="roamexit" title="Back" aria-label="Back">&#x2715;</button>
+  <button class="btn icon gear" data-a="settings" title="Settings" aria-label="Settings">&#x2699;</button>
   <div class="roam-chip"><b id="roam-name">House</b><button class="btn sm" data-a="roamnext">Next map</button><button class="btn sm" data-a="roamshuffle">Rearrange</button></div>
 </div>
 
@@ -57,6 +59,7 @@
 <section id="hud" class="hud" hidden>
   <div class="hud-tl">
     <button class="btn icon" data-a="leave" title="Leave party" aria-label="Leave party">&#x2715;</button>
+    <button class="btn icon gear" data-a="settings" title="Settings" aria-label="Settings">&#x2699;</button>
     <div class="party-chip lobby-only"><div class="code-tiles" id="code-tiles"></div><button class="btn sm" data-a="copy">Invite</button></div>
   </div>
   <div class="hud-tr lobby-only">
