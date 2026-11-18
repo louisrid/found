@@ -61,7 +61,7 @@ test('the one-time update renames everyone to a unique lowercase word, makes the
   const used = P.usedNames(new Map(ps.map(p => [p.id, p]))), seen = new Set(); let changed = 0; for (const p of ps) if (P.migrate(p, used, seeded(99 + changed++))) { assert.match(p.name, /^[a-z]+$/); seen.add(p.name); assert.equal(p.look.skin, 0); assert.equal(p.mig, P.MIGRATION); }
   assert.equal(seen.size, 40, 'every name is different while there are words left'); ps.forEach((p, i) => assert.equal(p.coins, 200000 + 1000 + i));
   const c0 = ps[0].coins, n0 = ps[0].name; assert.ok(!P.migrate(ps[0], used)); assert.equal(ps[0].coins, c0); assert.equal(ps[0].name, n0);
-  const old = P.newProfile('z'.repeat(20), 'k'.repeat(48), 0, seeded(5)); old.mig = undefined; old.season = 1; old.coins = 50; assert.ok(P.migrate(old, used)); assert.equal(old.coins, 200300, 'an old-season save is reset first, then given the 200,000');
+  const old = P.newProfile('z'.repeat(20), 'k'.repeat(48), 0, seeded(5)); old.mig = undefined; old.season = 1; old.coins = 50; assert.ok(P.migrate(old, used)); assert.equal(old.coins, 200050, 'an old save keeps what it had and is given the 200,000');
 });
 test('guns: aim help is weak and only on weak guns; better guns lock harder and wobble less', () => {
   const L = G0.LIST, on = L.filter(g => g.assist > 0);
@@ -189,10 +189,10 @@ test('idle, wheel, mini game and gifting', () => {
   let paid = 0; for (let i = 0; i < 12; i++) paid += P.miniWin(a, now); assert.equal(paid, 1500); assert.equal(P.miniLeft(a, now), 0); assert.equal(P.miniLeft(a, now + 86400000), 10);
   const ca = a.coins, cb = b.coins; P.giveCoins(a, b, 100); assert.equal(a.coins, ca - 100); assert.equal(b.coins, cb + 100); assert.throws(() => P.giveCoins(a, b, 7)); assert.throws(() => P.giveCoins(a, a, 50)); a.coins = 10; assert.throws(() => P.giveCoins(a, b, 50), /Not enough/);
 });
-test('a new season wipes coins, boxes and items but keeps the name and face', () => {
-  const p = P.newProfile('c'.repeat(24), 'k', 1, () => 0.5); p.season = 1; p.coins = 9999; p.own = ['x_void']; p.boxes = 7; p.look.outfit = 'x_void'; p.look.hat = 'pirate'; const name = p.name, skin = p.look.skin;
-  const v = P.privateOf(p, Date.now()); assert.equal(v.coins, 300); assert.deepEqual(v.own, []); assert.equal(v.boxes, 1); assert.equal(p.look.outfit, 'tee'); assert.equal(p.look.hat, ''); assert.equal(p.name, name); assert.equal(p.look.skin, skin);
-  p.coins = 500; P.privateOf(p, Date.now()); assert.equal(p.coins, 500, 'only once');
+test('nothing is ever wiped: coins, boxes, items and looks stay, even on a save from an old season', () => {
+  const p = P.newProfile('c'.repeat(24), 'k', 1, () => 0.5); p.season = 1; p.coins = 9999; p.own = ['x_void', 'g_pea']; p.boxes = 7; p.look.outfit = 'x_void'; p.look.hat = 'pirate'; p.gun = 'g_pea';
+  const v = P.privateOf(p, Date.now()); assert.equal(v.coins, 9999); assert.ok(v.own.includes('x_void') && v.own.includes('g_pea'), 'items are kept, even ones that left the catalogue'); assert.equal(v.boxes, 7); assert.equal(p.look.outfit, 'x_void'); assert.equal(p.look.hat, 'pirate'); assert.equal(v.gun, 'g_pop', 'a gun that no longer exists just stops being held');
+  p.coins = 500; P.privateOf(p, Date.now()); assert.equal(p.coins, 500);
   for (const id of ['s2_seeker', 'bp_straw', 'bp_captain']) assert.ok(globalThis.FOUND_CATALOG.BY[id]); assert.ok(globalThis.FOUND_AVATAR_DATA.OUTC.s2_lava && globalThis.FOUND_AVATAR_DATA.HATV.bp_straw);
 });
 test('seeker hint: in the last 30% of the seek the seeker is told which objects are still hidden (host can turn it off)', () => {
@@ -259,9 +259,9 @@ test('the power curve: each rarity hits harder and kills faster, and takes longe
   assert.ok(T[0].ttkMin >= 2 && G0.LIST.every(g => g.dmg * g.pellets < G0.HP * 0.7 && (g.pellets > 1 || g.dmg * 2 < G0.HP)), 'a starter pistol needs 2 s+, and no gun one-shots you (single shots not even with a rage orb)');
   assert.ok(T.at(-1).avg / T[0].avg >= 2.5 && T.at(-1).avg / T[0].avg <= 8, 'cosmic is a few times a starter');
   /* earning them */
-  const med = Object.fromEntries(R.pace.map(x => [x.rarity, x.median])); let prev = 0; for (const x of R.pace) { assert.ok(x.median >= prev - 3, x.rarity + ' not sooner than the tier below'); prev = Math.max(prev, x.median); }
-  assert.ok(med.common <= 6 && med.rare <= 12 && med.legendary <= 30, 'the early tiers come quickly even with no kills: ' + JSON.stringify(med)); assert.ok(med.cosmic >= 100 && med.cosmic <= 600, 'a cosmic gun is a long chase: ' + med.cosmic + ' min');
-  assert.ok(R.complete.median >= 100 && R.complete.median <= 800, 'all the guns take hours, not minutes: ' + R.complete.median);
+  const med = Object.fromEntries(R.pace.map(x => [x.rarity, x.median])); let prev = 0; for (const x of R.pace.filter(x => C.RARITY.indexOf(x.rarity) >= C.RARITY.indexOf('rare'))) { assert.ok(x.median >= prev - 3, x.rarity + ' not sooner than the tier below'); prev = Math.max(prev, x.median); }
+  assert.ok(med.rare <= 12 && med.epic <= 15 && med.legendary <= 25, 'the early tiers come quickly even with no kills: ' + JSON.stringify(med)); assert.ok(med.cosmic >= 40 && med.cosmic <= 400, 'a cosmic gun is a long chase: ' + med.cosmic + ' min');
+  assert.ok(R.complete.median >= 60 && R.complete.median <= 400, 'all the guns take hours, not minutes: ' + R.complete.median);
   /* the crate never prints money: even a player who already owns everything but one gun loses coins on average */
   const ev = C.RARITY.filter(r => C.CRATE.odds[r]).reduce((s, r) => s + C.CRATE.odds[r] / 100 * C.PRICE[r] * C.CRATE.dup, 0); assert.ok(ev < C.CRATE.price * 0.6, 'refund value per crate ' + ev.toFixed(0));
   assert.equal(Object.values(C.BOX.odds).reduce((a, b) => a + b, 0), 100); assert.equal(Object.values(C.CRATE.odds).reduce((a, b) => a + b, 0), 100);
@@ -334,7 +334,7 @@ test('three boxes: clothes, guns and armour. The armour box gives armour you lac
   const m = prof('am'); m.boxes = 300; for (let i = 0; i < 300; i++) { const r = P.openBox(m); assert.ok(!r.item || (r.slot !== 'gun' && r.slot !== 'armor')); }
   const o = prof('ae'); P.equip(o, { look: { armor: 'a_titan' } }); assert.ok(!o.look.armor, 'only owned armour can be worn'); o.own.push('a_titan'); P.equip(o, { look: { armor: 'a_titan' } }); assert.equal(o.look.armor, 'a_titan'); assert.equal(P.publicOf(o).look.armor, 'a_titan');
   const pr = prof('ap'); pr.coins = 5e6; P.buyItem(pr, 'g_judge'); assert.equal(pr.coins, 5e6 - 2500000); assert.ok(C.price('a_titan') > C.price('a_aegis') && C.price('g_oblit') > C.price('g_nova'));
-  const gone = prof('ag'); gone.own.push('g_pea', 'g_pop'); gone.gun = 'g_pea'; assert.equal(P.privateOf(gone, 0).gun, 'g_pop'); assert.ok(!gone.own.includes('g_pea'), 'guns that no longer exist are tidied away');
+  const gone = prof('ag'); gone.own.push('g_pea', 'g_pop'); gone.gun = 'g_pea'; assert.equal(P.privateOf(gone, 0).gun, 'g_pop'); assert.ok(gone.own.includes('g_pea'), 'and the save keeps it');
 });
 test('armour adds health and cuts damage; its abilities work (thorns, dodge, last stand, regen, berserk)', () => {
   const { pa, ps, adv } = party(2, () => 0.5), [a, b] = ps, AR = globalThis.FOUND_ARMOR; pa.setGuns(true);

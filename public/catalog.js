@@ -306,9 +306,9 @@
   /* what an item costs: its own price when it has one (the premium guns and armour), otherwise the price of its rarity */
   const price = id => { const it = BY[id]; return it ? (it.price || PRICE[it.rarity]) : 0; };
   /* the mystery box: one kind, one price, a random item you don't own (odds in percent) */
-  const BOX = { name: 'Clothes Box', price: 2500, odds: { common: 46, uncommon: 20, rare: 18, epic: 10, legendary: 4, mythic: 1.5, celestial: 0.4, cosmic: 0.1 } };
-  /* the gun crate: 500 coins for a random gun (odds in percent; a gun you own pays `dup` of its shop price back). Players earn 1,000 coins a minute, so a crate is half a minute away */
-  const CRATE = { name: 'Gun Crate', price: 4000, odds: { common: 30, uncommon: 26, rare: 20, epic: 12, legendary: 7, mythic: 3, celestial: 1.5, cosmic: 0.5 }, dup: 0.1 };
+  const BOX = { name: 'Clothes Box', price: 2500, odds: { common: 22, uncommon: 24, rare: 24, epic: 16, legendary: 8, mythic: 4, celestial: 1.5, cosmic: 0.5 } };
+  /* the gun crate: 4,000 coins for a random gun (odds in percent; a gun you own pays `dup` of its shop price back). Players earn 2,000 coins a minute, so a crate is two minutes away */
+  const CRATE = { name: 'Gun Crate', price: 4000, odds: { common: 10, uncommon: 20, rare: 26, epic: 20, legendary: 12, mythic: 7, celestial: 3.5, cosmic: 1.5 }, dup: 0.1 };
   /* the third box: armour. Shop-only premium pieces (the ones with their own price) are never in a crate. */
   const ARMORBOX = { name: 'Armour Box', price: 3500, odds: CRATE.odds, dup: CRATE.dup };
   const CRATES = { gun: CRATE, armor: ARMORBOX };

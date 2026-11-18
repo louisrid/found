@@ -22,10 +22,10 @@ export const START_COINS = 200000, MIGRATION = 1;
 export function cleanName(n) { return String(n || '').replace(/[^\p{L}\p{N} _.\-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 14); }
 const pick = (a, r) => a[Math.floor(r() * a.length)];
 /* older saves kept three kinds of box; they are all one kind now */
-/* bump SEASON to wipe everyone's coins, boxes and items the next time they connect (names and faces are kept) */
-export const SEASON = 2;
-const gone = (p) => { if (Array.isArray(p.own)) { const n = p.own.length; p.own = p.own.filter(id => C.BY[id]); if (p.own.length !== n && p.gun && !C.BY[p.gun]) p.gun = ''; } if (p.gun && !C.BY[p.gun]) p.gun = ''; if (p.look && p.look.armor && !C.BY[p.look.armor]) p.look.armor = ''; };
-const fix = p => { gone(p); if (p.season !== SEASON) { p.season = SEASON; p.own = []; p.coins = 300; p.boxes = 1; p.pet = ''; p.daily = { last: '' }; p.idleAt = 0; if (p.look) Object.assign(p.look, { outfit: C.STARTER.includes(p.look.outfit) ? p.look.outfit : 'tee', hat: '', acc: '' }); } if (typeof p.boxes !== 'number') p.boxes = Object.values(p.boxes || {}).reduce((a, b) => a + (b | 0), 0); if (!p.daily) p.daily = { last: '' }; if (!p.own) p.own = []; if (!p.stats) p.stats = {}; if (!p.idleAt) p.idleAt = Date.now(); return p; };
+/* nothing a player owns is ever wiped or taken away. If an item ever leaves the catalogue the player keeps it in their save and it just stops being worn. */
+const gone = (p) => { if (p.gun && !C.BY[p.gun]) p.gun = ''; if (p.look && p.look.armor && !C.BY[p.look.armor]) p.look.armor = ''; };
+export const SEASON = 2;   // only a marker now: it used to wipe saves when bumped, and it never will again
+const fix = p => { gone(p); p.season = SEASON; if (typeof p.boxes !== 'number') p.boxes = Object.values(p.boxes || {}).reduce((a, b) => a + (b | 0), 0); if (!p.daily) p.daily = { last: '' }; if (!p.own) p.own = []; if (!p.stats) p.stats = {}; if (!p.idleAt) p.idleAt = Date.now(); return p; };
 
 export function randomWord(rnd = Math.random, used) { const free = used ? WORDS.filter(w => !used.has(w)) : WORDS, list = free.length ? free : WORDS; return pick(list, rnd); }
 export function newProfile(id, key, now, rnd = Math.random, used) {

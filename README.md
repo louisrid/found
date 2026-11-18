@@ -170,3 +170,7 @@ a real database yet.
 - Three boxes: Clothes Box (stock, daily and wheel), Gun Crate (4,000) and Armour Box (3,500).
 - Economy: 2,000 coins a minute just for being in the lobby, 12,000 a kill, 4,000 lost per death, coin bags 5,000, round rewards x8.
 - Aim help is weak and only on the weakest guns; once you are aimed right at someone every gun locks on, and better guns lock harder and wobble less.
+
+## Permanence and odds
+- Nothing a player owns is ever wiped or removed. The old season reset is gone (`SEASON` is only a marker). Items that ever leave the catalogue stay in the save and simply stop being worn. Never bump the one-time `MIGRATION` again.
+- Better odds: Gun Crate and Armour Box roll common 10, uncommon 20, rare 26, epic 20, legendary 12, mythic 7, celestial 3.5, cosmic 1.5 percent. The Clothes Box rolls 22, 24, 24, 16, 8, 4, 1.5, 0.5. Collecting every crate gun takes about 108 minutes of passive income alone, before kills.
