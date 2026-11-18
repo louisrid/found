@@ -20,7 +20,7 @@ export const CFG = { maxPlayers: 12, pickMs: 8000, soloHideMs: 3000, resultsMs: 
   /* hints: in the last 30% of the seek the seeker is told which objects are still hidden. Moving: hiders earn a bonus for changing spot */
   /* hint 1 (last 30%): which objects; hint 2 (last 15%): which rooms. A hider who stays within 2 m for 20 s starts twitching */
   /* every player earns 2,000 coins a minute (200 every 6 s). Guns (always on in the lobby): 150 hp (armour adds more), 12,000 coins a kill, back after 3 s with 2 s of shield */
-  payMs: 6000, payCoins: 200, killCoins: 12000, deathCoins: 4000, repeatKillMs: 20000, respawnMs: 3000, shieldMs: 2000, pickupMs: 4500, pickupMax: 9, pickupR: 2.8,
+  payMs: 6000, payCoins: 200, killCoins: 12000, deathCoins: 4000, repeatKillMs: 20000, respawnMs: 3000, shieldMs: 2000, pickupMs: 4500, pickupMax: 0, pickupR: 2.8,
   hintAt: 0.3, hint2At: 0.15, moveBonus: 40, moveDist: 8, moveEveryMs: 10000, moveMax: 5, restlessMs: 20000, stillDist: 2 };
 /* each map: how long hiders get, how long seekers get, how many other objects and gift boxes are scattered */
 export const MAPCFG = {
@@ -277,7 +277,7 @@ export class Party {
       if (ar.regen && !q.deadAt && q.hp < this.mh(q) && now - (q.hurtAt || 0) > 4000 && now >= (q.regenAt || 0)) { q.regenAt = now + 1000; this.heal(q, ar.regen); }
     }
   }
-  /* things that spawn on the grass while guns are on: a heart (+60 hp), a shield bubble (5 s), a coin bag (+5,000) and a rage orb (double damage for 8 s) */
+  /* pickups are switched off (pickupMax 0): nothing floats on the grass any more. The code stays so they can come back. They were: a heart (+60 hp), a shield bubble (5 s), a coin bag (+5,000) and a rage orb (double damage for 8 s) */
   spawnPickup(now) {
     const kinds = [['heal', 38], ['coins', 27], ['shield', 20], ['rage', 15]]; let r = this.rnd() * 100, kind = 'heal'; for (const [k, w] of kinds) { if (r < w) { kind = k; break; } r -= w; }
     for (let tries = 0; tries < 12; tries++) {

@@ -289,15 +289,16 @@ test('guns: shooting, health, kills, respawn, and only when switched on in the l
   a.prof.gun = 'g_rail'; adv(1500); place(); b.hp = 150; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 138, 'a gun you do not own fires as the starter pistol (12)');
   pa.setGuns(false); assert.ok(!pa.state().guns);
 });
-test('free for all: a kill pays 12,000, dying costs 4,000, the same victim twice in 20 s pays once, and pickups spawn and heal', () => {
-  const { pa, ps, sent, adv } = party(3), [a, b, c] = ps; pa.setGuns(true); a.prof.gun = 'g_pop';
+test('pickups are off by default: nothing spawns on the grass', () => { const { pa, adv } = party(3); pa.setGuns(true); for (let i = 0; i < 20; i++) adv(CFG.pickupMs + 10); assert.equal(CFG.pickupMax, 0); assert.equal(pa.pickups.length, 0); assert.equal(pa.state().pk.length, 0); });
+test('free for all: a kill pays 12,000, dying costs 4,000, the same victim twice in 20 s pays once, and pickups (switched off by default) still work when enabled', () => {
+  const { pa, ps, sent, adv } = party(3, null, { pickupMax: 9 }), [a, b, c] = ps; pa.setGuns(true); a.prof.gun = 'g_pop';
   const place = () => { a.x = 20; a.z = 0; b.x = 20; b.z = 10; c.x = 50; c.z = 0; }, kill = v => { let n = 0; while (!v.deadAt && n++ < 40) { adv(400); pa.shoot(a, { ry: v === b ? 0 : Math.PI / 2 }); } assert.ok(v.deadAt); };
   b.prof.coins = 5000; place(); const a0 = a.prof.coins; kill(b); assert.equal(a.prof.coins, a0 + 12000); assert.equal(b.prof.coins, 1000, 'lost 4,000'); const k1 = sent.filter(m => m[1].t === 'kill').pop()[1]; assert.equal(k1.coins, 12000); assert.equal(k1.lost, 4000);
   adv(CFG.respawnMs + 50); place(); b.shield = 0; kill(b); assert.equal(a.prof.coins, a0 + 12000, 'the same victim again within 20 s pays nothing'); assert.equal(sent.filter(m => m[1].t === 'kill').pop()[1].coins, 0); assert.equal(b.prof.coins, 0, 'but they still lose coins, down to nothing');
   adv(25000); place(); c.shield = 0; kill(c); assert.equal(a.prof.coins, a0 + 24000, 'a different victim pays');
   /* pickups */
   adv(CFG.respawnMs + 50); for (const p of ps) { p.x = 0; p.z = 0; p.shield = 0; p.hp = 150; } pa.pickups = []; pa.pickAt = 0; adv(10); assert.equal(pa.pickups.length, 1); assert.deepEqual(Object.keys(pa.state().pk[0]).length, 4);
-  for (let i = 0; i < 30; i++) adv(CFG.pickupMs + 10); assert.ok(pa.pickups.length <= CFG.pickupMax && pa.pickups.length >= 5, 'they keep spawning up to a limit: ' + pa.pickups.length);
+  for (let i = 0; i < 30; i++) adv(CFG.pickupMs + 10); assert.ok(pa.pickups.length <= pa.cfg.pickupMax && pa.pickups.length >= 5, 'they keep spawning up to a limit: ' + pa.pickups.length);
   const k = { id: 99, kind: 'heal', x: 3, z: 3 }; pa.pickups.push(k); b.x = 3; b.z = 3; b.hp = 150; adv(100); assert.ok(pa.pickups.includes(k), 'a full-health player leaves a heart'); b.hp = 30; adv(100); assert.ok(!pa.pickups.includes(k) && b.hp === 90, 'a heart heals 60');
   const cn = { id: 100, kind: 'coins', x: 3, z: 3 }; pa.pickups.push(cn); const c0 = b.prof.coins; adv(100); assert.equal(b.prof.coins, c0 + 5000);
   const rg = { id: 101, kind: 'rage', x: 3, z: 3 }; pa.pickups.push(rg); adv(100); assert.ok(b.rageUntil > pa.now()); b.x = 20; b.z = 10; a.x = 20; a.z = 0; c.x = 50; c.z = 30; a.hp = 150; adv(400); pa.shoot(b, { ry: Math.PI }); assert.equal(a.hp, 150 - 12 * 2, 'rage doubles damage');
@@ -312,11 +313,11 @@ test('a barrel roll dodges shots, lasts under half a second and cannot be spamme
 });
 test('the golden safe zone at the spawn: nobody shoots from it, nobody is hurt in it, pickups stay out, and respawns land inside', () => {
   const { pa, ps, sent, adv } = party(3), [a, b, c] = ps, S = globalThis.FOUND_LAYOUT.lobby.safe; a.prof.gun = 'g_pop'; b.prof.gun = 'g_pop';
-  assert.ok(S && S.r >= 6, 'the lobby has a safe zone'); for (const sp of globalThis.FOUND_LAYOUT.lobby.spawns) assert.ok(Math.hypot(sp.x - S.x, sp.z - S.z) < S.r - 1, 'every spawn point is well inside it');
+  assert.ok(S && S.r >= 14, 'the lobby has a big safe zone'); for (const sp of globalThis.FOUND_LAYOUT.lobby.spawns) assert.ok(Math.hypot(sp.x - S.x, sp.z - S.z) < S.r - 1, 'every spawn point is well inside it');
   c.x = 40; c.z = 40;
   a.x = S.x; a.z = S.z - 30; b.x = S.x; b.z = S.z - 20;          /* both outside, b in front of a */
   pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 138, 'outside the zone shots land'); adv(400);
-  b.z = S.z - 2; b.hp = 150; a.z = S.z - 12; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 150, 'a player standing in the zone cannot be hurt'); adv(400);
+  b.z = S.z - 2; b.hp = 150; a.z = S.z - 22; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 150, 'a player standing in the zone cannot be hurt'); adv(400);
   b.hp = 150; b.z = S.z; a.z = S.z + 1; a.x = S.x; pa.shoot(b, { ry: Math.PI }); assert.equal(a.hp, 150, 'and cannot shoot from inside it'); assert.ok(!sent.slice(-3).some(m => m[1].t === 'shot' && m[1].id === b.id));
   a.x = S.x + S.r + 0.5; a.z = S.z; b.x = S.x + S.r + 0.5; b.z = S.z + 12; adv(400); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 138, 'one step outside the edge it is a fight again');
   pa.pickups = []; for (let i = 0; i < 200; i++) pa.spawnPickup(0); assert.ok(pa.pickups.length > 0 && pa.pickups.every(k => Math.hypot(k.x - S.x, k.z - S.z) >= S.r + 2), 'pickups never spawn in the zone');

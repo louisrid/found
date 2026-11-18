@@ -119,12 +119,24 @@
     g.add(tb.build({ shadow: false }));
     /* the golden safe zone around the spawn: a bright ring on the grass, a soft gold floor, a faint wall and a SAFE label */
     const SZ = L.safe, GOLD = 0xffc400, gold = (o, op) => new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide });
+    /* a white marble platform under it: a big flat disc of veined marble with a paler border, a gold ring at its edge and a thin gold ring inside */
+    const marble = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; const x = c.getContext('2d'), r = seeded(4242);
+      x.fillStyle = '#f6f6f8'; x.fillRect(0, 0, 512, 512);
+      for (let i = 0; i < 40; i++) { x.fillStyle = `rgba(${190 + r() * 40 | 0},${196 + r() * 40 | 0},${215 + r() * 30 | 0},${0.1 + r() * 0.2})`; x.beginPath(); x.ellipse(r() * 512, r() * 512, 30 + r() * 120, 20 + r() * 80, r() * 3, 0, 6.283); x.fill(); }
+      for (let v = 0; v < 38; v++) { let px = r() * 512, py = r() * 512, a = r() * 6.283; x.strokeStyle = `rgba(${110 + r() * 40 | 0},${118 + r() * 40 | 0},${140 + r() * 40 | 0},${0.3 + r() * 0.3})`; x.lineWidth = 1 + r() * (v % 4 === 0 ? 4 : 2); x.beginPath(); x.moveTo(px, py);
+        for (let k = 0; k < 14; k++) { a += (r() - 0.5) * 1.1; px += Math.cos(a) * (16 + r() * 22); py += Math.sin(a) * (16 + r() * 22); x.lineTo(px, py); } x.stroke(); }
+      /* polished tile joints: a few faint lines through the middle */
+      x.strokeStyle = 'rgba(150,158,180,0.22)'; x.lineWidth = 1.5; for (const k of [0.25, 0.5, 0.75]) { x.beginPath(); x.moveTo(k * 512, 0); x.lineTo(k * 512, 512); x.moveTo(0, k * 512); x.lineTo(512, k * 512); x.stroke(); }
+      const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t; })();
+    const mat = new THREE.MeshLambertMaterial({ map: marble, emissive: 0x24242a }), edge = new THREE.MeshLambertMaterial({ color: 0xe4e6ee, emissive: 0x30303a });
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(SZ.r + 0.7, SZ.r + 0.7, 0.04, 96), [edge, mat, edge]); disc.position.set(SZ.x, 0.02, SZ.z); disc.receiveShadow = true; g.add(disc);
     const szRing = new THREE.Mesh(new THREE.RingGeometry(SZ.r - 0.55, SZ.r, 96), new THREE.MeshBasicMaterial({ color: GOLD })); szRing.rotation.x = -Math.PI / 2; szRing.position.set(SZ.x, 0.07, SZ.z); g.add(szRing);
     const szIn = new THREE.Mesh(new THREE.RingGeometry(SZ.r - 1.15, SZ.r - 0.95, 96), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.9 })); szIn.rotation.x = -Math.PI / 2; szIn.position.set(SZ.x, 0.075, SZ.z); g.add(szIn);
-    const szFill = new THREE.Mesh(new THREE.CircleGeometry(SZ.r - 0.55, 96), gold(0, 0.2)); szFill.rotation.x = -Math.PI / 2; szFill.position.set(SZ.x, 0.055, SZ.z); g.add(szFill);
+    const szMid = new THREE.Mesh(new THREE.RingGeometry(SZ.r * 0.5 - 0.12, SZ.r * 0.5 + 0.12, 96), new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: 0.8 })); szMid.rotation.x = -Math.PI / 2; szMid.position.set(SZ.x, 0.065, SZ.z); g.add(szMid);
+    const szFill = new THREE.Mesh(new THREE.CircleGeometry(SZ.r - 0.55, 96), gold(0, 0.03)); szFill.rotation.x = -Math.PI / 2; szFill.position.set(SZ.x, 0.055, SZ.z); g.add(szFill);
     const szWall = new THREE.Mesh(new THREE.CylinderGeometry(SZ.r, SZ.r, 3.4, 96, 1, true), gold(0, 0.12)); szWall.position.set(SZ.x, 1.7, SZ.z); g.add(szWall);
-    const szText = textPlane('SAFE', 6, 1.5, { color: '#b87a00', alpha: 0.85 }); szText.position.set(SZ.x, 0.08, SZ.z - SZ.r + 2.2); g.add(szText);
-    anim.push({ fn: t => { if (W.map !== 'lobby') return; const s = 0.5 + 0.5 * Math.sin(t * 2); szFill.material.opacity = 0.14 + s * 0.1; szWall.material.opacity = 0.08 + s * 0.08; szIn.material.opacity = 0.55 + s * 0.4; } });
+    const szText = textPlane('SAFE', 8, 2, { color: '#b87a00', alpha: 0.9 }); szText.position.set(SZ.x, 0.09, SZ.z - SZ.r + 2.6); g.add(szText);
+    anim.push({ fn: t => { if (W.map !== 'lobby') return; const s = 0.5 + 0.5 * Math.sin(t * 2); szFill.material.opacity = 0.02 + s * 0.035; szWall.material.opacity = 0.08 + s * 0.08; szIn.material.opacity = 0.55 + s * 0.4; } });
   }
 
   /* ---------------- building the house ---------------- */

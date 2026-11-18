@@ -387,9 +387,9 @@
   /* ---------------- the lobby ---------------- */
   function buildLobby() {
     const colliders = [];
-    const spawns = []; for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; spawns.push({ x: +(Math.sin(a) * 4.5).toFixed(2), z: +(8 + Math.cos(a) * 3).toFixed(2), ry: Math.PI }); }
+    const spawns = []; for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; spawns.push({ x: +(Math.sin(a) * 8).toFixed(2), z: +(8 + Math.cos(a) * 6).toFixed(2), ry: Math.PI }); }
     /* the golden safe zone around the spawn points: nobody can shoot or be shot inside it */
-    const safe = { x: 0, z: 8, r: 8 };
+    const safe = { x: 0, z: 8, r: 15 };
     return { kind: 'lobby', safe, colliders, spawns, bounds: { r: 58 } };
   }
   /* push a circle (player) out of every box; returns the corrected position */
