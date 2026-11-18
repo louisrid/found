@@ -8,7 +8,7 @@
    npm start
    ```
 3. Open http://localhost:3000. Open it in a second browser window to play against yourself.
-4. You land in the shared lobby automatically. Step into the READY ring (a 60% majority of the room starts a round).
+4. You land in the shared lobby automatically. Tap **Hide & Seek**, then **I'm ready** (60% of the room ready starts a round).
 
 Profiles save to `data/found.json`. Delete that file to reset everyone.
 

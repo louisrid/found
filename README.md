@@ -2,7 +2,7 @@
 
 **FOUND** is multiplayer prop hunt with voxel characters. One player seeks. Everyone else picks an object, turns
 into it, and hides somewhere in the house among ordinary copies of the same object. Open the game and you are in the
-shared lobby: shoot it out on the lawn, then step into the ring to start a round.
+shared lobby: shoot it out on the lawn, then tap the **Hide & Seek** button to start a round.
 
 Plain Node (20+), two dependencies (`ws`, `postgres`), no build step, three.js r128 bundled.
 
@@ -114,7 +114,7 @@ up/down, camera distance, field of view and sound. Saved in that browser.
 Nothing is sold for real money.
 
 ## Guns: the lobby is a free for all
-Everyone who opens the game lands in the **same public lobby**, an open lawn where **guns are always on**. There are no party codes or admin switches; a new lobby opens only when the current one is full (12 players), and **Practice** gives you a private room against bots. Hold **F**, the **FIRE** button or **right-click** to shoot; number keys **1-9** (or a tap) pick a gun from the **hotbar** at the bottom. 100 HP, 3 s respawn with a 2 s shield, **barrel roll** (double-tap A or D) dodges shots.
+Spawn is a golden **safe zone** (no shooting in or out). Aim help is off for most guns (only the weakest keep a gentle, narrow one), and weaker guns wobble more at range. Everyone who opens the game lands in the **same public lobby**, an open lawn where **guns are always on**. There are no party codes or admin switches; a new lobby opens only when the current one is full (12 players), and **Practice** gives you a private room against bots. Hold **F**, the **FIRE** button or **right-click** to shoot; number keys **1-9** (or a tap) pick a gun from the **hotbar** at the bottom. 100 HP, 3 s respawn with a 2 s shield, **barrel roll** (double-tap A or D) dodges shots.
 - A kill pays **10,000 coins**; dying costs **3,000** (or whatever you have). Killing the same player again within 20 s pays nothing, so two friends cannot farm each other (`CFG.killCoins`, `deathCoins`, `repeatKillMs`).
 - Things spawn on the grass: **hearts** (+50 HP), **shields** (5 s), **coin bags** (+1,000) and **rage orbs** (double damage for 8 s), up to 9 at a time (`CFG.pickupMs`, `pickupMax`).
 - Income: every connected player earns **1,000 coins a minute**. The **Gun Crate** lives in the shop's Guns tab: 500 coins, rolls a rarity by its odds (Common to Cosmic), duplicates pay 10% of the shop price back. `node tests/curve.mjs` prints the power curve and how long each tier takes to earn.
@@ -128,6 +128,7 @@ Tap **A** or **D** twice quickly (on a phone: flick the joystick left or right t
 - `public/avatar-data.js`: the current BITZ cosmetics merged with the legacy catalogue from commit `c8f9bd2`, which
   restores 27 dropped outfits (the `n_*` set, Bitz Piece, Season 01), 3 hats, 2 extras and 9 pets.
   Total: 77 outfits, 35 hats, 24 extras, 26 pets, 22 hairstyles.
+- Accounts: identity lives in localStorage and a ten-year cookie, and the server sends the device a signed copy of the profile (`SNAP_SECRET` signs it) that restores the account after a wiped server disk. Set `DATABASE_URL` too for server-side storage.
 - One public lobby that everyone joins automatically, and rejoining it after a refresh (the server remembers who is where).
 
 ## Code map

@@ -216,12 +216,12 @@ export class Party {
     const ry = Number.isFinite(+b.ry) ? +b.ry : p.ry; p.ry = ry;
     const rays = [], dmg = new Map();
     for (let k = 0; k < g.pellets; k++) {
-      const a = ry + (g.pellets > 1 ? (k / (g.pellets - 1) - 0.5) * g.spread * 2 : 0) + (this.rnd() - 0.5) * (g.pellets > 1 ? g.spread * 0.4 : g.spread), sx = Math.sin(a), sz = Math.cos(a);
+      const a = ry + (g.pellets > 1 ? (k / (g.pellets - 1) - 0.5) * g.spread * 2 : 0) + (this.rnd() - 0.5) * (g.pellets > 1 ? g.spread * 0.4 : g.spread) + (this.rnd() - 0.5) * 2 * (g.jit || 0), sx = Math.sin(a), sz = Math.cos(a);
       let best = null, bd = g.range;
       for (const q of this.players.values()) {
         if (q === p || q.spec || q.deadAt || this.inSafe(q) || now < q.shield || (q.rolling && now - q.rollStart <= 450)) continue;   // a roll dodges
         const dx = q.x - p.x, dz = q.z - p.z, fwd = dx * sx + dz * sz, side = Math.abs(dx * sz - dz * sx);
-        if (fwd > 0.3 && fwd <= bd && side <= 1.6 + fwd * 0.04) { best = q; bd = fwd; }
+        if (fwd > 0.3 && fwd <= bd && side <= 0.95 + (g.assist || 0) + fwd * 0.02) { best = q; bd = fwd; }
       }
       rays.push([r2(p.x + sx * bd), r2(p.z + sz * bd), best ? best.id : 0]);
       if (best) dmg.set(best, (dmg.get(best) || 0) + g.dmg * (now < p.rageUntil ? 2 : 1));

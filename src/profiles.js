@@ -10,7 +10,14 @@ const C = globalThis.FOUND_CATALOG, D = globalThis.FOUND_AVATAR_DATA, G = global
 
 export const hashKey = k => crypto.createHash('sha256').update('found:' + String(k)).digest('hex');
 export const today = now => new Date(now).toISOString().slice(0, 10);
-const NAMES = ['Pip', 'Moss', 'Juno', 'Bean', 'Rook', 'Tofu', 'Kiwi', 'Nico', 'Lumi', 'Ziggy', 'Pebble', 'Mochi', 'Otto', 'Waffle', 'Fig', 'Bo'];
+/* every player is named one cool lowercase word (they can still change it in the menu) */
+export const WORDS = ['ember', 'nova', 'vortex', 'zephyr', 'glitch', 'blaze', 'onyx', 'pixel', 'comet', 'frost', 'shadow', 'turbo', 'neon', 'raven', 'storm', 'echo', 'flux', 'pulse', 'quartz', 'rogue', 'saber', 'titan', 'viper', 'wraith', 'zenith', 'apex', 'bolt', 'cipher', 'dagger', 'eclipse', 'falcon', 'ghost', 'havoc', 'iris', 'jinx', 'karma', 'lynx', 'mirage', 'nebula', 'omen', 'phantom', 'quasar', 'riot', 'spark', 'tempest', 'umbra', 'vandal', 'warp', 'xenon', 'yeti',
+  'zero', 'arc', 'blitz', 'cobalt', 'drift', 'enigma', 'fable', 'gale', 'halo', 'inferno', 'jolt', 'kraken', 'lotus', 'maverick', 'nimbus', 'oblivion', 'pyro', 'quill', 'rift', 'sable', 'thorn', 'ultra', 'valor', 'whisper', 'axiom', 'basalt', 'cinder', 'dusk', 'ember', 'fury', 'glacier', 'harbor', 'ion', 'jade', 'kestrel', 'lunar', 'magma', 'nomad', 'orbit', 'prism', 'quake', 'radiant', 'solar', 'talon', 'unity', 'vector', 'wolf', 'xylo', 'yonder', 'zinc',
+  'aurora', 'bandit', 'chaos', 'delta', 'ethos', 'fang', 'gravity', 'hex', 'indigo', 'jester', 'knight', 'laser', 'meteor', 'nitro', 'omega', 'pandemonium', 'quartzite', 'razor', 'static', 'tundra', 'vapor', 'warden', 'zodiac', 'ash', 'blink', 'crux', 'dynamo', 'elixir', 'flare', 'glint', 'haze', 'inkwell', 'jinxed', 'kilo', 'lava', 'mystic', 'nexus', 'opal', 'plasma', 'rune', 'spectre', 'tracer', 'umber', 'volt', 'wisp', 'zap'];
+/* the lightest skin is the default for everyone */
+export const WHITE_SKIN = 0;
+/* every new player, and every player the first time they connect after this update, gets this many coins */
+export const START_COINS = 200000, MIGRATION = 1;
 export function cleanName(n) { return String(n || '').replace(/[^\p{L}\p{N} _.\-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 14); }
 const pick = (a, r) => a[Math.floor(r() * a.length)];
 /* older saves kept three kinds of box; they are all one kind now */
@@ -18,12 +25,20 @@ const pick = (a, r) => a[Math.floor(r() * a.length)];
 export const SEASON = 2;
 const fix = p => { if (p.season !== SEASON) { p.season = SEASON; p.own = []; p.coins = 300; p.boxes = 1; p.pet = ''; p.daily = { last: '' }; p.idleAt = 0; if (p.look) Object.assign(p.look, { outfit: C.STARTER.includes(p.look.outfit) ? p.look.outfit : 'tee', hat: '', acc: '' }); } if (typeof p.boxes !== 'number') p.boxes = Object.values(p.boxes || {}).reduce((a, b) => a + (b | 0), 0); if (!p.daily) p.daily = { last: '' }; if (!p.own) p.own = []; if (!p.stats) p.stats = {}; if (!p.idleAt) p.idleAt = Date.now(); return p; };
 
-export function newProfile(id, key, now, rnd = Math.random) {
+export function randomWord(rnd = Math.random, used) { const free = used ? WORDS.filter(w => !used.has(w)) : WORDS, list = free.length ? free : WORDS; return pick(list, rnd); }
+export function newProfile(id, key, now, rnd = Math.random, used) {
   const hairs = D.HAIRS.map(h => h[0]).filter(h => h !== 'none');
-  return { id, kh: hashKey(key), created: now, name: pick(NAMES, rnd) + Math.floor(10 + rnd() * 89),
-    look: { skin: Math.floor(rnd() * D.SKIN.length), hair: pick(hairs, rnd), hc: Math.floor(rnd() * 4), outfit: pick(['tee', 'hoodie'], rnd), hat: '', acc: '', aura: '' },
-    pet: '', col: Math.floor(rnd() * 8), season: SEASON, idleAt: now, coins: 300, own: [], boxes: 1, daily: { last: '' }, stats: { games: 0, wins: 0, finds: 0 } };
+  return { id, kh: hashKey(key), created: now, name: randomWord(rnd, used), mig: MIGRATION,
+    look: { skin: WHITE_SKIN, hair: pick(hairs, rnd), hc: Math.floor(rnd() * 4), outfit: pick(['tee', 'hoodie'], rnd), hat: '', acc: '', aura: '' },
+    pet: '', col: Math.floor(rnd() * 8), season: SEASON, idleAt: now, coins: START_COINS, own: [], boxes: 1, daily: { last: '' }, stats: { games: 0, wins: 0, finds: 0 } };
 }
+/* once per player: a cool lowercase name, white skin, and 200,000 coins to make up for the resets. Returns true when it changed anything. */
+export function migrate(p, used, rnd = Math.random) {
+  if ((p.mig || 0) >= MIGRATION) return false;
+  fix(p); p.mig = MIGRATION; p.name = randomWord(rnd, used); if (used) used.add(p.name);
+  if (p.look) p.look.skin = WHITE_SKIN; p.coins = (p.coins || 0) + START_COINS; return true;
+}
+export const usedNames = profiles => new Set([...profiles.values()].map(p => p.name));
 export const owns = (p, id) => !id || C.STARTER.includes(id) || (p.own || []).includes(id);
 export function publicOf(p) { return { id: p.id, name: p.name, look: p.look, pet: p.pet, col: p.col, gun: p.gun || G.START }; }
 export function privateOf(p, now) { fix(p); return { id: p.id, name: p.name, look: p.look, pet: p.pet, col: p.col, gun: p.gun || G.START, admin: !!p.admin, coins: p.coins, own: p.own, boxes: p.boxes, stats: p.stats, daily: p.daily.last !== today(now),

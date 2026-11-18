@@ -19,12 +19,16 @@
 
   /* ---------------- identity and the socket ---------------- */
   const hex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, '0')).join('');
-  function ident(reset) { let v = null; try { v = JSON.parse(localStorage.getItem('found-id')); } catch (e) {} if (reset || !v || !v.id) { v = { id: hex(12), key: hex(24) }; try { localStorage.setItem('found-id', JSON.stringify(v)); } catch (e) {} } return v; }
+  /* your identity lives in localStorage and a ten-year cookie (so clearing one does not lose you), plus a signed copy of your profile the server sends now and then */
+  const cookieGet = () => { try { const m = /(?:^|; )found-id=([^;]+)/.exec(document.cookie); return m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) { return null; } };
+  const cookieSet = v => { try { document.cookie = 'found-id=' + encodeURIComponent(JSON.stringify(v)) + ';max-age=315360000;path=/;SameSite=Lax' + (location.protocol === 'https:' ? ';Secure' : ''); } catch (e) {} };
+  function ident(reset) { let v = null; try { v = JSON.parse(localStorage.getItem('found-id')); } catch (e) {} if (!v || !v.id) v = cookieGet(); if (reset || !v || !v.id) { v = { id: hex(12), key: hex(24) }; try { localStorage.removeItem('found-snap'); } catch (e) {} } try { localStorage.setItem('found-id', JSON.stringify(v)); } catch (e) {} cookieSet(v); return v; }
+  const snapGet = () => { try { return localStorage.getItem('found-snap') || undefined; } catch (e) { return undefined; } };
   let ws = null, retry = 0, replaced = false;
   function connect() {
     if (replaced) return;
     ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
-    ws.onopen = () => { retry = 0; const id = ident(); send({ t: 'auth', id: id.id, key: id.key, auto: 1 }); };
+    ws.onopen = () => { retry = 0; const id = ident(); send({ t: 'auth', id: id.id, key: id.key, snap: snapGet(), auto: 1 }); };
     ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (er) { return; } const h = ON[m.t]; if (h) try { h(m); } catch (er) { console.error(m.t, er); } };
     ws.onclose = e => { if (e.code === 4000) { replaced = true; return; } if (S.booted) toast('Reconnecting…'); setTimeout(connect, Math.min(5000, 300 * 2 ** retry++)); };
   }
@@ -42,6 +46,7 @@
   const ON = {
     me(m) { const was = S.me; S.me = m.me; W.setMe(meInfo()); paintMe(); if (!S.booted) boot(); if (S.layer === 'locker' || S.layer === 'shop') paintWardrobe(true); },
     authfail() { ident(true); ws.close(); },
+    snap(m) { try { localStorage.setItem('found-snap', m.s); } catch (e) {} },
     replaced() { replaced = true; layer(`<div class="card modal narrow"><div class="mhead"><h2>Opened elsewhere</h2></div><div class="mbody"><p>FOUND is open in another tab or device. Close that one, then reload here.</p><div class="mfoot"><button class="btn black" onclick="location.reload()">Reload</button></div></div></div>`, 'replaced'); },
     party(m) {
       if (m.now) S.skew = m.now - Date.now();
@@ -57,7 +62,7 @@
       paintHud(); paintRole(); paintGun();
     },
     tp(m) { W.setMap(m.map, m.seed); W.tp(m.x, m.z, m.ry); },
-    unready() { S.hold = W.ring; if (S.hold) toast('Settings changed. Step out and back into the ring to accept.'); },
+    unready() { if ((myRow() || {}).ready) toast('Settings changed. Tap Hide & Seek to ready up again.'); },
     pos(m) { W.pos(m.p); },
     fix(m) { W.fix(m.x, m.z); },
     bye(m) { W.drop(m.id); },
@@ -146,20 +151,21 @@
   }
   function enterParty() {
     $('#roam').hidden = true;
-    W.mode = 'play'; W.menuHidden = true; $('#home').hidden = true; $('#hud').hidden = false; touchControls(true); W.ring = false;
-    if (S.party.pub && !S.tipped.guns) { S.tipped.guns = 1; setTimeout(() => toast('Guns are on. Kill = +10,000 coins. Step in the ring for a round.'), 900); }
+    W.mode = 'play'; W.menuHidden = true; $('#home').hidden = true; $('#hud').hidden = false; touchControls(true);
+    if (S.party.pub && !S.tipped.guns) { S.tipped.guns = 1; setTimeout(() => toast('Guns are on. Kill = +10,000 coins. Tap Hide & Seek for a round.'), 900); }
   }
   function leaveParty() { S.party = null; S.phase = ''; S.round = null; closeLayer(); W.clearItems(); W.gunsOn = false; S.dead = false; $('#hud').classList.remove('in-round'); $('#hud').hidden = true; }
   function phaseChanged(prev, ph) {
     $('#hud').classList.toggle('in-round', ph !== 'lobby');
-    if (ph === 'lobby') { closeLayer('pick'); closeLayer('results'); S.round = null; W.setMap('lobby'); W.ring = false; }
+    if (ph === 'lobby') { closeLayer('pick'); closeLayer('results'); S.round = null; W.setMap('lobby'); }
+    if (ph !== 'lobby') closeLayer('hs');
     if (ph === 'pick') closeLayer('results');
     if (ph === 'seek') { SFX.go(); flash('GO'); }
   }
 
   /* ---------------- HUD ---------------- */
   function paintHud() {
-    const P = S.party; if (!P) return; if (S.layer === 'rules') showRules(); const ph = P.phase, meId = S.me && S.me.id;
+    const P = S.party; if (!P) return; if (S.layer === 'rules') showRules(); if (S.layer === 'hs') showHS(); const ph = P.phase, meId = S.me && S.me.id;
     $('#board').innerHTML = (ph === 'lobby' && P.guns ? [...P.players].sort((a, b) => (b.kills || 0) - (a.kills || 0)) : P.players).map(p => {
       const col = W.PC[p.col % W.PC.length], host = p.id === P.host ? ' <small>★</small>' : '';
       const st = ph === 'lobby' ? (p.ready ? 'READY' : '') : p.spec ? 'WATCHING' : p.role === 'seeker' ? 'SEEKER' : ph === 'pick' ? (p.picked ? 'PICKED' : 'PICKING') : 'HIDER';
@@ -168,11 +174,9 @@
     }).join('');
     const lb = $('#lobby-bar');
     if (ph === 'lobby') {
-      const ready = P.players.filter(p => p.ready).length, isHost = P.host === meId, n = P.players.length, mi = globalThis.FOUND_LAYOUT.info(P.map);
-      const need = n <= 2 ? n : Math.ceil(n * 0.6), status = P.readyAt ? 'Starting…' : n === 1 ? 'Step in the ring to play' : `Step in the ring to start`;
+      const ready = P.players.filter(p => p.ready).length, n = P.players.length, need = n <= 2 ? n : Math.ceil(n * 0.6), mine = !!(myRow() || {}).ready;
       lb.hidden = false;
-      lb.innerHTML = `<div class="hint status"><i class="ring-ico"></i><span>${status}</span><b>${P.readyAt ? '' : ready + '/' + need}</b></div>` +
-        `<div class="acts">${isHost ? `<button class="btn" data-a="map">Map: ${mi.name}${P.mapPick === 'auto' ? '' : ' ✓'}</button>` : ''}<button class="btn" data-a="rules">Rules</button>${isHost ? '<button class="btn black" data-a="start">Start</button>' : ''}</div>`;
+      lb.innerHTML = `<button class="btn hs-btn${mine ? ' on' : ''}" data-a="hs"><span>${mine ? 'Ready ✓' : 'Hide &amp; Seek'}</span><b>${P.readyAt ? 'Go!' : ready + '/' + need}</b></button>`;
     } else if (!S.tipUntil || Date.now() > S.tipUntil) lb.hidden = true;
   }
   function tip(html, ms) { const lb = $('#lobby-bar'); lb.hidden = false; lb.innerHTML = `<div class="hint"><span>${html}</span></div>`; S.tipUntil = Date.now() + ms; setTimeout(() => { if (Date.now() >= S.tipUntil && S.phase !== 'lobby') lb.hidden = true; }, ms + 50); }
@@ -214,7 +218,6 @@
     if (key === lastMv && Date.now() - lastMvAt < 1000) return; lastMv = key; lastMvAt = Date.now();
     send({ t: 'mv', x: +m.x.toFixed(2), z: +m.z.toFixed(2), y: +m.y.toFixed(2), ry: +m.ry.toFixed(2), f });
   }, 80);
-  W.onRing = inside => { if (!inside) S.hold = false; if (S.party && S.party.phase === 'lobby' && !(inside && S.hold)) { send({ t: 'ready', v: inside }); if (inside) SFX.click(); } };
   W.onGrab = id => send({ t: 'grab', item: id });
   W.onTag = id => { send({ t: 'tag', id }); SFX.click(); };
 
@@ -226,6 +229,15 @@
     ['copies', 'Copies of each object', [[2, '2'], [3, '3'], [5, '5']], 'More copies make hiders harder to spot.'],
     ['seekers', 'Seekers', [[0, 'Auto'], [1, 'One'], [2, 'Two']], 'Auto is one seeker, or two from 7 players.'],
     ['hints', 'Seeker hints', [[0, 'Off'], [1, 'On']], 'Last 30%: which objects are still hidden. Last 15%: which rooms.']];
+  /* the one button for the other game: ready up, pick the map, see the rules, or start it now */
+  function showHS() {
+    const P = S.party; if (!P || P.phase !== 'lobby') { closeLayer('hs'); return; }
+    const meId = S.me && S.me.id, host = P.host === meId, mine = !!(myRow() || {}).ready, n = P.players.length, ready = P.players.filter(p => p.ready).length, need = n <= 2 ? n : Math.ceil(n * 0.6), mi = globalThis.FOUND_LAYOUT.info(P.map);
+    const sig = [mine, ready, need, host, P.map, P.mapPick, !!P.readyAt, n].join(); if (S.layer === 'hs' && S.hsSig === sig) return; S.hsSig = sig;
+    layer(`<div class="card modal narrow"><div class="mhead"><div><h2>Hide &amp; Seek</h2><div class="sub">${P.readyAt ? 'Starting…' : ready + ' of ' + need + ' ready'}</div></div><button class="btn icon" data-a="close" aria-label="Close">&#x2715;</button></div>
+      <div class="mbody"><p class="big">One seeks. The rest hide as objects.</p><button class="btn big${mine ? '' : ' black'}" data-a="ready">${mine ? 'Ready ✓ (tap to cancel)' : "I'm ready"}</button>
+      <div class="hs-row">${host ? `<button class="btn" data-a="map">Map: ${mi.name}${P.mapPick === 'auto' ? '' : ' ✓'}</button>` : ''}<button class="btn" data-a="rules">Rules</button>${host ? '<button class="btn" data-a="start">Start now</button>' : ''}</div></div></div>`, 'hs');
+  }
   function showRules() {
     const P = S.party; if (!P) return; const host = P.host === (S.me && S.me.id), R = P.rules || {}, T = P.times || { hide: 30000, seek: 150000 };
     const dur = ms => { const s = Math.round(ms / 1000); return s >= 60 ? Math.floor(s / 60) + 'm' + (s % 60 ? ' ' + (s % 60) + 's' : '') : s + 's'; };
@@ -359,7 +371,7 @@
     const d = myGun(), t = performance.now(), sf = globalThis.FOUND_LAYOUT.lobby.safe;
     if (W.me && Math.hypot(W.me.x - sf.x, W.me.z - sf.z) < sf.r) { if (t - (S.safeAt || 0) > 2500) { S.safeAt = t; toast('Safe zone. Step out to fight.'); } return; }
     if (t - (S.fireAt || 0) < d.ms) return; S.fireAt = t;
-    const ry = W.aimAt(d.range); if (W.me) { W.me.ry = ry; W.aimHold = performance.now() + 260; }
+    const ry = W.aimAt(d.range, d); if (W.me) { W.me.ry = ry; W.aimHold = performance.now() + 260; }
     send({ t: 'shoot', ry: +ry.toFixed(3) });
   }
   setInterval(() => { if (S.fireHeld) fire(); }, 30);
@@ -468,6 +480,8 @@
     idle() { send({ t: 'idle' }); }, spin() { send({ t: 'spin' }); }, mini() { send({ t: 'mini' }); SFX.click(); },
     minipick(v) { if (S.mini) send({ t: 'minipick', i: +v }); },
     gift(v) { send({ t: 'gift', to: v, n: 100 }); SFX.click(); },
+    hs() { S.hsSig = ''; showHS(); SFX.click(); },
+    ready() { send({ t: 'ready', v: !(myRow() || {}).ready }); SFX.click(); },
     rules() { showRules(); SFX.click(); },
     rule(v) { const [k, x] = v.split(':'); send({ t: 'rule', k, v: +x }); SFX.click(); },
     stake() { const st = [0, 100, 250, 500], i = st.indexOf(S.party.stake); send({ t: 'stake', n: st[(i + 1) % st.length] }); },

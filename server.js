@@ -16,6 +16,8 @@ const PORT = Number(process.env.PORT) || 3000;
 const TEST_FAST = process.env.FOUND_TEST_FAST === '1';   // tests only: short rounds
 
 const store = await openStore();
+/* everyone who played before gets the one-time update (name, skin, 200,000 coins) as the server starts */
+{ const used = P.usedNames(store.profiles); let n = 0; for (const p of store.profiles.values()) if (P.migrate(p, used)) n++; if (n) { store.touch(); console.log('migrated', n, 'profiles'); } }
 const parties = new Map(), online = new Map();   // code -> Party, profile id -> connection
 
 /* ---------------- static files ---------------- */
@@ -49,6 +51,14 @@ const server = http.createServer((req, res) => {
 });
 
 /* ---------------- parties ---------------- */
+/* a signed copy of your profile lives on your device, so your account comes back even when the server's disk is wiped (free hosting does that).
+   The key is secret to the server; only the real profile for that id and key is ever restored, and only when the server has none. */
+const SNAP_KEY = crypto.createHash('sha256').update('found-snap|' + (process.env.SNAP_SECRET || '') + '|' + (process.env.RENDER_SERVICE_ID || 'local')).digest();
+const mac = body => crypto.createHmac('sha256', SNAP_KEY).update(body).digest('base64url');
+const sign = prof => { const body = Buffer.from(JSON.stringify(prof)).toString('base64url'); return body + '.' + mac(body); };
+function unsign(blob) {
+  try { const [body, m] = String(blob || '').split('.'); if (!body || !m) return null; const want = Buffer.from(mac(body)), got = Buffer.from(m); if (want.length !== got.length || !crypto.timingSafeEqual(want, got)) return null; return JSON.parse(Buffer.from(body, 'base64url').toString()); } catch (e) { return null; }
+}
 const send = (c, m) => { if (c && c.ws.readyState === 1) c.ws.send(typeof m === 'string' ? m : JSON.stringify(m)); };
 const io = {
   all(party, m) { const s = JSON.stringify(m); for (const p of party.players.values()) send(p.conn, s); },
@@ -116,7 +126,7 @@ const handlers = {
 function need(c) { if (!c.party) throw new Error('Join a party first.'); return c.party; }
 const me = c => send(c, { t: 'me', me: P.privateOf(c.prof, Date.now()) });
 
-const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 16 * 1024 });
+const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 32 * 1024 });
 wss.on('connection', ws => {
   const c = { ws, prof: null, party: null, bucket: 40, last: Date.now() };
   ws.on('message', raw => {
@@ -142,15 +152,20 @@ function auth(c, b) {
   if (!/^[a-z0-9]{16,40}$/.test(id) || key.length < 16 || key.length > 80) return send(c, { t: 'authfail' });
   let prof = store.profiles.get(id);
   if (prof && prof.kh !== P.hashKey(key)) return send(c, { t: 'authfail' });
-  if (!prof) { prof = P.newProfile(id, key, Date.now()); store.profiles.set(id, prof); store.touch(id); }
+  if (!prof && b.snap) { const back = unsign(b.snap); if (back && back.id === id && back.kh === P.hashKey(key)) { prof = back; store.profiles.set(id, prof); store.touch(id); console.log('restored a profile from its device copy'); } }
+  if (!prof) { prof = P.newProfile(id, key, Date.now(), Math.random, P.usedNames(store.profiles)); store.profiles.set(id, prof); store.touch(id); }
+  if (P.migrate(prof, P.usedNames(store.profiles))) store.touch(id);
   const old = online.get(id); if (old && old !== c) { send(old, { t: 'replaced' }); old.ws.close(4000, 'replaced'); }
   c.prof = prof; online.set(id, c);
-  send(c, { t: 'me', me: P.privateOf(prof, Date.now()), build: BUILD });
+  send(c, { t: 'me', me: P.privateOf(prof, Date.now()), build: BUILD }); sendSnap(c);
   /* back into the party this player was in (reconnects, refreshes), otherwise the public lobby */
   const code = String(b.code || '').toUpperCase();
   if (/^[A-Z]{4}$/.test(code) && parties.has(code)) join(c, parties.get(code));
   else if (b.auto) { const mine = [...parties.values()].find(q => q.players.has(id)); join(c, mine || publicParty()); }
 }
+
+function sendSnap(c) { if (!c.prof) return; const s = sign(c.prof); if (s !== c.snap) { c.snap = s; send(c, { t: 'snap', s }); } }
+setInterval(() => { for (const c of online.values()) sendSnap(c); }, 20000).unref();
 
 /* positions out 15 times a second; the clock 5 times a second; dead sockets out every 20 s */
 setInterval(() => { for (const party of parties.values()) party.sendPositions(); }, 66).unref();

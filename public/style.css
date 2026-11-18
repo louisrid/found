@@ -703,3 +703,10 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 /* toasts and the role card clear the rows above them */
 @media (max-width: 1000px) { .toasts { top: calc(158px + var(--safe-t)); } }
 @media (max-width: 760px) { .target { top: calc(80px + var(--safe-t)); } .hud .timer { top: calc(10px + var(--safe-t)); } }
+
+/* the one Hide & Seek button */
+.hs-btn { display: inline-flex; align-items: center; gap: 12px; background: var(--ink); color: var(--paper); font-size: 19px; padding: 12px 12px 12px 26px; border-radius: 999px; box-shadow: var(--sh); }
+.hs-btn b { font: 15px/1 var(--display); background: var(--paper); color: var(--ink); border-radius: 999px; padding: 7px 12px; }
+.hs-btn.on { background: #00c26e; color: var(--ink); } .hs-btn.on b { background: var(--ink); color: #fff; }
+.hs-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 14px; }
+@media (max-width: 760px) { .hs-btn { font-size: 17px; padding: 11px 11px 11px 22px; } }

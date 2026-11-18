@@ -20,9 +20,9 @@ async function start() {
 async function stop() { if (!srv) return; const s = srv; srv = null; s.kill('SIGTERM'); await new Promise(r => s.once('exit', r)); }
 class Client {
   constructor(name) { this.name = name; this.id = crypto.randomBytes(12).toString('hex'); this.key = crypto.randomBytes(24).toString('hex'); this.msgs = []; this.waiters = []; }
-  open(code, auto) { return new Promise((res, rej) => { this.ws = new WebSocket(`ws://localhost:${PORT}/ws`);
+  open(code, auto, snap) { return new Promise((res, rej) => { this.ws = new WebSocket(`ws://localhost:${PORT}/ws`);
     this.ws.on('message', d => { const m = JSON.parse(d); this.msgs.push(m); if (m.t === 'me') this.me = m.me; if (m.t === 'party') this.party = m; this.waiters = this.waiters.filter(w => !(w.f(m) && (w.res(m), true))); });
-    this.ws.on('open', () => { this.send({ t: 'auth', id: this.id, key: this.key, code, auto }); res(); }); this.ws.on('error', rej); }); }
+    this.ws.on('open', () => { this.send({ t: 'auth', id: this.id, key: this.key, code, auto, snap }); res(); }); this.ws.on('error', rej); }); }
   send(m) { this.ws.send(JSON.stringify(m)); }
   wait(f, ms = 8000, what = '') { const hit = this.msgs.find(f); if (hit) return Promise.resolve(hit); return new Promise((res, rej) => { this.waiters.push({ f, res }); setTimeout(() => rej(new Error(this.name + ' timed out waiting for ' + what)), ms); }); }
   fresh() { this.msgs = []; }
@@ -37,7 +37,7 @@ try {
   assert.equal((await fetch(`http://localhost:${PORT}/world.js`, { headers: { 'accept-encoding': 'gzip' } })).headers.get('content-encoding'), 'gzip'); ok('compresses scripts');
   assert.equal((await fetch(`http://localhost:${PORT}/../server.js`)).status, 404); ok('no files outside public/');
   const A = new Client('A'), B = new Client('B');
-  await A.open(); await A.wait(m => m.t === 'me'); assert.equal(A.me.boxes, 1); assert.equal(A.me.coins, 300); ok('auth creates a profile with coins and a welcome box');
+  await A.open(); await A.wait(m => m.t === 'me'); assert.equal(A.me.boxes, 1); assert.equal(A.me.coins, 200000); ok('auth creates a profile with coins and a welcome box');
   A.send({ t: 'create' }); const pa = await A.wait(m => m.t === 'party'); assert.match(pa.code, /^[A-Z]{4}$/); assert.equal(pa.mode, 'solo'); ok('create gives a 4-letter party code');
   await B.open(); await B.wait(m => m.t === 'me');
   B.send({ t: 'join', code: 'QQQQ' }); assert.match((await B.wait(m => m.t === 'err')).m, /No party/); ok('a wrong code is refused');
@@ -46,7 +46,7 @@ try {
   A.send({ t: 'ready', v: true }); B.send({ t: 'ready', v: true });
   const rA = await A.wait(m => m.t === 'role', 5000, 'role'), rB = await B.wait(m => m.t === 'role', 5000, 'role');
   assert.deepEqual([rA.role, rB.role].sort(), ['hider', 'seeker']); const H = rA.role === 'hider' ? A : B, S = H === A ? B : A, rH = H === A ? rA : rB;
-  assert.equal(rH.offer.length, 3); await sleep(100); assert.equal(A.me.coins, 200); assert.equal(B.me.coins, 200); ok('both ready: one seeker, one hider with three props; both stakes are paid in');
+  assert.equal(rH.offer.length, 3); await sleep(100); assert.equal(A.me.coins, 199900); assert.equal(B.me.coins, 199900); ok('both ready: one seeker, one hider with three props; both stakes are paid in');
   H.send({ t: 'choose', obj: rH.offer[0] });
   const roundH = await H.wait(m => m.t === 'round', 6000, 'round'); await S.wait(m => m.t === 'round', 6000, 'round');
   assert.equal(roundH.prop, rH.offer[0]); assert.equal(roundH.items.filter(i => i.type === roundH.prop).length, 3); assert.equal(roundH.map, 'cabin'); ok('the round has three decoy copies of the hider\'s prop');
@@ -67,7 +67,7 @@ try {
   await A.wait(m => m.t === 'party' && m.phase === 'lobby', 6000, 'lobby'); ok('back to the lobby');
   /* shop, box, daily */
   const boxes = S.me.boxes; S.fresh(); S.send({ t: 'open' }); const op = await S.wait(m => m.t === 'opened', 3000); assert.ok(op.r.item); await sleep(100); assert.equal(S.me.boxes, boxes - 1); assert.ok(S.me.own.includes(op.r.item)); ok('opening a Mystery Box gives an item');
-  S.fresh(); S.send({ t: 'buy', item: 'x_void' }); assert.match((await S.wait(m => m.t === 'err')).m, /Not enough/); ok('the shop refuses what you cannot afford');
+  S.fresh(); S.send({ t: 'buy', item: 'nope' }); assert.match((await S.wait(m => m.t === 'err')).m, /No such/); ok('the shop refuses an item that does not exist (not enough coins is covered in the unit tests)');
   S.fresh(); S.send({ t: 'daily' }); await sleep(150); const b1 = S.me.boxes; S.send({ t: 'daily' }); assert.match((await S.wait(m => m.t === 'err')).m, /tomorrow/); assert.equal(S.me.boxes, b1); ok('one free box a day');
   S.send({ t: 'equip', look: { [op.r.slot === 'pet' ? 'hat' : op.r.slot]: op.r.slot === 'pet' ? '' : op.r.item }, pet: op.r.slot === 'pet' ? op.r.item : '' }); await sleep(150); ok('equip works');
   S.fresh(); S.send({ t: 'spin' }); const g = await S.wait(m => m.t === 'got', 3000, 'spin'); assert.ok(g.coins || g.box); S.send({ t: 'spin' }); assert.match((await S.wait(m => m.t === 'err')).m, /tomorrow/); ok('one wheel spin a day');
@@ -88,6 +88,14 @@ try {
     if (cr && cr.t === 'crated') { assert.equal(cr.r.slot, 'gun'); ok('a gun crate opens and gives a gun'); } else { assert.match(cr.m, /Not enough/); ok('a gun crate needs 500 coins'); } }
   await sleep(250); const coins = A.me.coins; A.close(); B2.close(); await sleep(1800); await stop(); await start();
   const A2 = new Client('A2'); A2.id = A.id; A2.key = A.key; await A2.open(); await A2.wait(m => m.t === 'me'); assert.equal(A2.me.coins, coins); A2.close(); ok('profiles survive a restart');
+  /* permanent accounts: the server hands the device a signed copy; after the server's disk is wiped, that copy brings the account back, and a forged copy does not */
+  { const W1 = new Client('W1'); await W1.open(); await W1.wait(m => m.t === 'me'); assert.match(W1.me.name, /^[a-z]+$/, 'a cool lowercase word'); assert.equal(W1.me.look.skin, 0, 'white skin');
+    const snap = (await W1.wait(m => m.t === 'snap', 3000, 'snapshot')).s, nm = W1.me.name; W1.send({ t: 'equip', name: 'keeper' }); await sleep(200); const snap2 = (await W1.wait(m => m.t === 'snap' && m.s !== snap, 25000, 'fresh snapshot')).s; W1.close(); await sleep(300);
+    await stop(); fs.rmSync(DATA, { force: true }); await start();
+    const W2 = new Client('W2'); W2.id = W1.id; W2.key = W1.key; await W2.open(undefined, undefined, snap2); const back = await W2.wait(m => m.t === 'me'); assert.equal(back.me.name, 'keeper'); assert.equal(back.me.coins, 200000 + 0 * nm.length); W2.close(); ok('after a wiped server the device copy restores the same account');
+    await sleep(300); await stop(); fs.rmSync(DATA, { force: true }); await start();
+    const bad = snap2.slice(0, 40) + (snap2[40] === 'A' ? 'B' : 'A') + snap2.slice(41), W3 = new Client('W3'); W3.id = W1.id; W3.key = W1.key; await W3.open(undefined, undefined, bad); const fresh = await W3.wait(m => m.t === 'me'); assert.notEqual(fresh.me.name, 'keeper'); W3.close();
+    const W4 = new Client('W4'); W4.id = W1.id; W4.key = crypto.randomBytes(24).toString('hex'); await W4.open(undefined, undefined, snap2); const other = await W4.wait(m => m.t === 'me' || m.t === 'authfail'); assert.ok(other.t === 'authfail' || other.me.name !== 'keeper'); W4.close(); ok('a forged copy, or someone else\'s key, never restores an account'); }
   console.log(`\n${n} integration checks passed`);
 } catch (e) { console.error(e); process.exitCode = 1; }
 finally { await stop(); fs.rmSync(dir, { recursive: true, force: true }); }

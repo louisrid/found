@@ -105,7 +105,6 @@
   W.objModel = objModel;
 
   /* ---------------- building the lobby ---------------- */
-  let ringMesh, ringFill, ringText;
   function buildLobby() {
     const L = LAY.lobby, g = new THREE.Group(); groups.lobby = g; scene.add(g);
     /* the lawn: pixel grass, with little tufts and flowers. Nothing else stands here. */
@@ -113,15 +112,11 @@
     const tb = new Batch(), rnd = seeded(777), greens = ['#22b83a', '#2fd84a', '#4be36a'], petals = ['#ffffff', '#ffd60a', '#ff8ad8', '#ff4b3e', '#7ad8ff'];
     for (let i = 0; i < 260; i++) {
       const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * (PR - 2), x = Math.sin(a) * r, z = Math.cos(a) * r;
-      if (Math.hypot(x - L.ring.x, z - L.ring.z) < L.ring.r + 1.2) continue;
+      if (Math.hypot(x - L.safe.x, z - L.safe.z) < L.safe.r - 0.5) continue;
       if (rnd() < 0.12) { tb.box(0.08, 0.34, 0.08, '#16a83a', x, 0.17, z, 0); tb.box(0.26, 0.16, 0.26, petals[(rnd() * petals.length) | 0], x, 0.42, z, 0.02); continue; }
       const col = greens[(rnd() * greens.length) | 0], h = 0.26 + rnd() * 0.22; tb.box(0.12, h, 0.12, col, x, h / 2, z, 0); tb.box(0.12, h * 0.7, 0.12, col, x + 0.16, h * 0.35, z + 0.06, 0); tb.box(0.12, h * 0.85, 0.12, shade(col, 1.15), x - 0.1, h * 0.42, z + 0.14, 0);
     }
     g.add(tb.build({ shadow: false }));
-    /* ready ring */
-    ringMesh = new THREE.Mesh(new THREE.RingGeometry(L.ring.r - 0.35, L.ring.r, 72), new THREE.MeshBasicMaterial({ color: K })); ringMesh.rotation.x = -Math.PI / 2; ringMesh.position.set(L.ring.x, 0.06, L.ring.z); g.add(ringMesh);
-    ringFill = new THREE.Mesh(new THREE.CircleGeometry(L.ring.r - 0.35, 72), new THREE.MeshBasicMaterial({ color: K, transparent: true, opacity: 0.06 })); ringFill.rotation.x = -Math.PI / 2; ringFill.position.set(L.ring.x, 0.05, L.ring.z); g.add(ringFill);
-    ringText = textPlane('READY', 5.2, 1.3, { alpha: 0.9 }); ringText.position.set(L.ring.x, 0.07, L.ring.z); g.add(ringText);
     /* the golden safe zone around the spawn: a bright ring on the grass, a soft gold floor, a faint wall and a SAFE label */
     const SZ = L.safe, GOLD = 0xffc400, gold = (o, op) => new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide });
     const szRing = new THREE.Mesh(new THREE.RingGeometry(SZ.r - 0.55, SZ.r, 96), new THREE.MeshBasicMaterial({ color: GOLD })); szRing.rotation.x = -Math.PI / 2; szRing.position.set(SZ.x, 0.07, SZ.z); g.add(szRing);
@@ -130,7 +125,6 @@
     const szWall = new THREE.Mesh(new THREE.CylinderGeometry(SZ.r, SZ.r, 3.4, 96, 1, true), gold(0, 0.12)); szWall.position.set(SZ.x, 1.7, SZ.z); g.add(szWall);
     const szText = textPlane('SAFE', 6, 1.5, { color: '#b87a00', alpha: 0.85 }); szText.position.set(SZ.x, 0.08, SZ.z - SZ.r + 2.2); g.add(szText);
     anim.push({ fn: t => { if (W.map !== 'lobby') return; const s = 0.5 + 0.5 * Math.sin(t * 2); szFill.material.opacity = 0.14 + s * 0.1; szWall.material.opacity = 0.08 + s * 0.08; szIn.material.opacity = 0.55 + s * 0.4; } });
-    anim.push({ fn: t => { if (W.map !== 'lobby') return; const k = W.ringK || 0; ringFill.material.opacity = 0.06 + k * 0.5 + (W.ring ? Math.sin(t * 5) * 0.03 + 0.05 : 0); ringFill.scale.setScalar(1); } });
   }
 
   /* ---------------- building the house ---------------- */
@@ -520,12 +514,16 @@
       u.body.position.y = 2 + Math.sin(t * 3 + g.position.x) * 0.3; u.body.rotation.y = t * 1.8; u.ring.scale.setScalar(1 + Math.sin(t * 4 + g.position.z) * 0.1); u.beam.material.opacity = 0.16 + 0.08 * Math.sin(t * 5 + g.position.x); } } });
   W.setDead = (id, dead) => { const o = whoIs(id); if (o) o.dead = dead; };
   W.clearDead = () => { if (W.me) W.me.dead = false; W.others.forEach(o => { o.dead = false; }); };
-  /* the nearest player in front of you, if any: shots turn to them (there is no crosshair) */
-  W.aimAt = function (range) {
-    const m = W.me; if (!m) return 0; let best = null, bd = 1e9;
+  /* aim help, only for the weakest guns: the nearest player inside a narrow cone in front of you, and the shot turns part of the way to them */
+  W.assistTarget = function (range, gun) {
+    const m = W.me, cone = (gun && gun.assist) || 0; if (!m || !cone) return null; let best = null, bd = 1e9;
     for (const o of W.others.values()) { if (o.dead || !o.info || o.info.ghost) continue; const dx = o.x - m.x, dz = o.z - m.z, dist = Math.hypot(dx, dz); if (dist > range || dist < 0.5) continue;
-      const a = Math.atan2(dx, dz), diff = Math.abs(Math.atan2(Math.sin(a - m.ry), Math.cos(a - m.ry))); if (diff < 0.9 && dist < bd) { bd = dist; best = a; } }
-    return best == null ? m.ry : best;
+      const a = Math.atan2(dx, dz), diff = Math.abs(Math.atan2(Math.sin(a - m.ry), Math.cos(a - m.ry))); if (diff < cone && dist < bd) { bd = dist; best = { o, a }; } }
+    return best;
+  };
+  W.aimAt = function (range, gun) {
+    const m = W.me; if (!m) return 0; const t = W.assistTarget(range, gun); if (!t) return m.ry;
+    return m.ry + Math.atan2(Math.sin(t.a - m.ry), Math.cos(t.a - m.ry)) * ((gun && gun.pull) || 0);
   };
   /* an aim guide on the ground: a line out in front of you, and a red ring on whoever the shot will lock to */
   let guide = null, lockRing = null;
@@ -534,12 +532,11 @@
       lockRing = new THREE.Mesh(new THREE.RingGeometry(1.5, 2.0, 32), new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide })); lockRing.rotation.x = -Math.PI / 2; lockRing.renderOrder = 2; scene.add(lockRing); }
     const m = W.me, on = W.gunsOn && W.map === 'lobby' && m && !m.dead && !W.frozen;
     guide.visible = !!on; if (!on) { lockRing.visible = false; return; }
-    const d = GUNS.BY[(m.info && m.info.gun) || GUNS.START] || GUNS.BY[GUNS.START], a = W.aimAt(d.range), locked = Math.abs(Math.atan2(Math.sin(a - m.ry), Math.cos(a - m.ry))) > 0.001;
+    const d = GUNS.BY[(m.info && m.info.gun) || GUNS.START] || GUNS.BY[GUNS.START], T = W.assistTarget(d.range, d), a = W.aimAt(d.range, d), locked = !!T;
     const len = Math.min(d.range, 16); guide.rotation.set(Math.PI / 2, a, 0); guide.scale.set(1, len, 1);
     /* the plane lies along +y in its own space: after laying it flat, move it so it starts at your feet and runs forward */
     guide.position.set(m.x + Math.sin(a) * (len / 2 + 1.2), 0.1 + m.y, m.z + Math.cos(a) * (len / 2 + 1.2)); guide.material.color.set(locked ? 0xff3b30 : 0xffffff);
-    lockRing.visible = locked; if (locked) { let best = null, bd = 1e9; for (const o of W.others.values()) { if (o.dead) continue; const dx = o.x - m.x, dz = o.z - m.z, dist = Math.hypot(dx, dz), ang = Math.atan2(dx, dz); if (Math.abs(Math.atan2(Math.sin(ang - a), Math.cos(ang - a))) < 0.02 && dist < bd) { bd = dist; best = o; } }
-      if (best) { lockRing.position.set(best.x, 0.12 + best.y, best.z); const k = 1 + Math.sin(t * 9) * 0.12; lockRing.scale.set(k, k, k); } else lockRing.visible = false; }
+    lockRing.visible = locked; if (T) { lockRing.position.set(T.o.x, 0.12 + T.o.y, T.o.z); const k = 1 + Math.sin(t * 9) * 0.12; lockRing.scale.set(k, k, k); }
   } });
   /* each frame: bars on while guns are on, a dead player is hidden, rainbow guns shimmer */
   anim.push({ fn: t => {
@@ -720,8 +717,6 @@
       m.g.position.set(m.x, m.y + (W.restless && W.role === 'hider' ? twitch(t, m.x) : 0), m.z); m.g.rotation.y = m.ry; m.g.userData.tag.visible = W.map === 'lobby';
       m.g.userData.av.userData.anim(t, dt, { moving, running: m.running, speed: m.running ? 2.8 : 2.2, jumping: !m.grounded, aim: !!m.info.gun });
       if (m.g.userData.pet) petFollow(m.g, m, t, dt, moving);
-      /* lobby: the ready ring */
-      if (W.map === 'lobby') { const R = LAY.lobby.ring, inside = Math.hypot(m.x - R.x, m.z - R.z) < R.r - 0.2; if (inside !== W.ring) { W.ring = inside; if (W.onRing) W.onRing(inside); } }
       /* walk up to a gift box and it's yours */
       if (W.map !== 'lobby' && !W.frozen && !W.dead) W.items.forEach(it => { if (it.gift && Math.hypot(it.x - m.x, it.z - m.z) < 2.8 && now > it.pend) { it.pend = now + 1500; if (W.onGrab) W.onGrab(it.id); } });
       /* camera: always straight behind you, a little above */

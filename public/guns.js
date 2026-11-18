@@ -91,6 +91,11 @@
     [[0.3, 0.3, 0.5, '#ffffff', 0, 0.04, 0.3, 'r'], [0.2, 0.34, 0.2, '#ffffff', 0, 0.28, 0.1, 'r'], [0.34, 0.34, 0.1, '#ffffff', 0, 0.05, 1.0, 'r'], [0.1, 0.1, 0.1, '#ff2d55', 0.26, 0.05, 1.14, 's'], [0.1, 0.1, 0.1, '#ffe14a', -0.26, 0.05, 1.14, 's'], [0.1, 0.1, 0.1, '#2fd84a', 0, 0.31, 1.14, 's'], [0.1, 0.1, 0.1, '#2f7bff', 0, -0.21, 1.14, 's'],
       [0.22, 0.22, 0.22, '#ffffff', 0, 0.05, 1.18, 'f'], [0.08, 0.08, 0.08, '#ffffff', 0.4, 0.3, 0.4, 'o'], [0.08, 0.08, 0.08, '#7af0ff', -0.4, 0.2, 0.6, 'o'], [0.08, 0.08, 0.08, '#ff7ad9', 0.1, 0.45, 0.2, 'o']]);
 
+  /* aim, by rarity. assist: how wide a cone (radians) the game helps you aim in, pull: how much of the turn it does for you, jit: random wobble on every shot (radians).
+     Only the weakest guns get any help, and a gentle one; the better the gun the truer it shoots. */
+  const AIM = { starter: { assist: 0.30, pull: 0.5, jit: 0.090 }, common: { assist: 0.25, pull: 0.4, jit: 0.100 }, uncommon: { assist: 0.18, pull: 0.3, jit: 0.060 },
+    rare: { assist: 0, pull: 0, jit: 0.035 }, epic: { assist: 0, pull: 0, jit: 0.022 }, legendary: { assist: 0, pull: 0, jit: 0.012 }, mythic: { assist: 0, pull: 0, jit: 0.006 }, celestial: { assist: 0, pull: 0, jit: 0.003 }, cosmic: { assist: 0, pull: 0, jit: 0 } };
+  defs.forEach(d => Object.assign(d, AIM[d.rarity] || AIM.common));
   const BY = {}; defs.forEach(d => { BY[d.id] = d; });
   root.FOUND_GUNS = Object.freeze({ LIST: defs, BY, HP: 100, START: 'g_pop' });
 })(globalThis);
