@@ -12,7 +12,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'found-it-')), DATA = path.joi
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let srv = null;
 async function start() {
-  srv = spawn(process.execPath, ['server.js'], { cwd: ROOT, env: Object.assign({}, process.env, { PORT: String(PORT), DATA_FILE: DATA, FOUND_TEST_FAST: '1', DATABASE_URL: '', ADMIN_CODE: 'test-admin-code' }), stdio: ['ignore', 'pipe', 'pipe'] });
+  srv = spawn(process.execPath, ['server.js'], { cwd: ROOT, env: Object.assign({}, process.env, { PORT: String(PORT), DATA_FILE: DATA, FOUND_TEST_FAST: '1', DATABASE_URL: '', ADMIN_CODE: '' }), stdio: ['ignore', 'pipe', 'pipe'] });
   srv.stderr.on('data', d => process.stderr.write('[server] ' + d));
   for (let i = 0; i < 150; i++) { try { const r = await fetch(`http://localhost:${PORT}/api/ping`); if (r.ok) return; } catch (e) {} await sleep(100); }
   throw new Error('server did not start');
@@ -20,9 +20,9 @@ async function start() {
 async function stop() { if (!srv) return; const s = srv; srv = null; s.kill('SIGTERM'); await new Promise(r => s.once('exit', r)); }
 class Client {
   constructor(name) { this.name = name; this.id = crypto.randomBytes(12).toString('hex'); this.key = crypto.randomBytes(24).toString('hex'); this.msgs = []; this.waiters = []; }
-  open(code) { return new Promise((res, rej) => { this.ws = new WebSocket(`ws://localhost:${PORT}/ws`);
+  open(code, auto) { return new Promise((res, rej) => { this.ws = new WebSocket(`ws://localhost:${PORT}/ws`);
     this.ws.on('message', d => { const m = JSON.parse(d); this.msgs.push(m); if (m.t === 'me') this.me = m.me; if (m.t === 'party') this.party = m; this.waiters = this.waiters.filter(w => !(w.f(m) && (w.res(m), true))); });
-    this.ws.on('open', () => { this.send({ t: 'auth', id: this.id, key: this.key, code }); res(); }); this.ws.on('error', rej); }); }
+    this.ws.on('open', () => { this.send({ t: 'auth', id: this.id, key: this.key, code, auto }); res(); }); this.ws.on('error', rej); }); }
   send(m) { this.ws.send(JSON.stringify(m)); }
   wait(f, ms = 8000, what = '') { const hit = this.msgs.find(f); if (hit) return Promise.resolve(hit); return new Promise((res, rej) => { this.waiters.push({ f, res }); setTimeout(() => rej(new Error(this.name + ' timed out waiting for ' + what)), ms); }); }
   fresh() { this.msgs = []; }
@@ -76,10 +76,13 @@ try {
   const code = A.party.code; B.close(); await sleep(200);
   const B2 = new Client('B2'); B2.id = B.id; B2.key = B.key; await B2.open(code); assert.equal((await B2.wait(m => m.t === 'party')).code, code); ok('rejoins the party after a reconnect');
   const evil = new Client('evil'); evil.id = A.id; await evil.open(); await evil.wait(m => m.t === 'authfail', 3000); evil.close(); ok('a wrong key is refused');
-  /* guns: only the admin switches them on; shots, hits and the crate go through the server */
-  { A.fresh(); A.send({ t: 'admin', code: 'wrong' }); assert.match((await A.wait(m => m.t === 'err', 3000, 'bad admin')).m, /Wrong admin code/);
-    B2.fresh(); B2.send({ t: 'guns', on: true }); assert.match((await B2.wait(m => m.t === 'err', 3000, 'not admin')).m, /Only the admin/); ok('guns and the admin code are guarded on the server');
-    A.fresh(); A.send({ t: 'admin', code: 'test-admin-code' }); await A.wait(m => m.t === 'me' && m.me.admin, 3000, 'admin me'); A.send({ t: 'guns', on: true }); await A.wait(m => m.t === 'party' && m.guns, 3000, 'guns on'); ok('the admin switches guns on for the party');
+  /* one public lobby: everyone who signs in with auto lands in the same party, guns are on from the start, and there is no admin switch */
+  { const P1 = new Client('P1'), P2 = new Client('P2'); await P1.open(undefined, 1); const a1 = await P1.wait(m => m.t === 'party', 3000, 'auto join'); await P2.open(undefined, 1); const a2 = await P2.wait(m => m.t === 'party' && m.players.length === 2, 3000, 'auto join 2');
+    assert.equal(a1.code, a2.code); assert.ok(a2.pub); assert.ok(a2.guns); ok('everyone auto-joins the same public lobby, guns on');
+    P2.send({ t: 'create' }); const pr = await P2.wait(m => m.t === 'party' && m.code !== a1.code, 3000, 'private'); assert.ok(!pr.pub); P2.send({ t: 'play' }); await P2.wait(m => m.t === 'party' && m.code === a1.code && m.players.length === 2, 3000, 'back to public'); ok('a practice room is private and play returns to the public lobby');
+    P2.send({ t: 'guns', on: false }); await sleep(150); assert.ok(P1.party.guns && !P1.msgs.some(m => m.t === 'err')); P2.send({ t: 'admin', code: 'x' }); await sleep(100); P1.close(); P2.close(); ok('there is no way to switch guns off'); }
+  /* shots, hits and the crate go through the server */
+  {
     await walk(A, 0, 0); await walk(B2, 0, 12); A.fresh(); B2.fresh(); A.send({ t: 'shoot', ry: 0 }); const hit = await B2.wait(m => m.t === 'hit', 3000, 'hit'); assert.equal(hit.hp, 86); assert.ok((await A.wait(m => m.t === 'shot', 3000)).e.length >= 1); ok('a shot reaches everyone and damages the target');
     A.fresh(); A.send({ t: 'crate' }); const cr = await Promise.race([A.wait(m => m.t === 'crated', 3000, 'crate').catch(() => null), A.wait(m => m.t === 'err', 3000, 'crate err').catch(() => null)]);
     if (cr && cr.t === 'crated') { assert.equal(cr.r.slot, 'gun'); ok('a gun crate opens and gives a gun'); } else { assert.match(cr.m, /Not enough/); ok('a gun crate needs 500 coins'); } }

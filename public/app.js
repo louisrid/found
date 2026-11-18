@@ -20,14 +20,11 @@
   /* ---------------- identity and the socket ---------------- */
   const hex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, '0')).join('');
   function ident(reset) { let v = null; try { v = JSON.parse(localStorage.getItem('found-id')); } catch (e) {} if (reset || !v || !v.id) { v = { id: hex(12), key: hex(24) }; try { localStorage.setItem('found-id', JSON.stringify(v)); } catch (e) {} } return v; }
-  const hashCode = () => { const m = /^#([A-Za-z]{4})$/.exec(location.hash); return m ? m[1].toUpperCase() : ''; };
-  const keepCode = c => { try { c ? sessionStorage.setItem('found-party', c) : sessionStorage.removeItem('found-party'); } catch (e) {} };
-  const keptCode = () => { try { return sessionStorage.getItem('found-party') || ''; } catch (e) { return ''; } };
   let ws = null, retry = 0, replaced = false;
   function connect() {
     if (replaced) return;
     ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
-    ws.onopen = () => { retry = 0; const id = ident(); send({ t: 'auth', id: id.id, key: id.key, code: hashCode() || keptCode() }); if (hashCode()) history.replaceState(null, '', location.pathname); };
+    ws.onopen = () => { retry = 0; const id = ident(); send({ t: 'auth', id: id.id, key: id.key, auto: 1 }); };
     ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (er) { return; } const h = ON[m.t]; if (h) try { h(m); } catch (er) { console.error(m.t, er); } };
     ws.onclose = e => { if (e.code === 4000) { replaced = true; return; } if (S.booted) toast('Reconnecting…'); setTimeout(connect, Math.min(5000, 300 * 2 ** retry++)); };
   }
@@ -43,12 +40,12 @@
   const meInfo = () => { const r = myRow() || {}; return deco({ id: S.me.id, name: S.me.name, look: S.me.look, pet: S.me.pet, col: S.me.col, gun: S.me.gun, role: r.role, found: r.found, prop: r.prop }); };
   const playerName = id => { const p = S.party && S.party.players.find(q => q.id === id); return p ? p.name : 'Someone'; };
   const ON = {
-    me(m) { const was = S.me; S.me = m.me; W.setMe(meInfo()); paintMe(); if (S.party && was && was.admin !== m.me.admin) paintHud(); if (!S.booted) boot(); if (S.layer === 'locker' || S.layer === 'shop') paintWardrobe(true); },
+    me(m) { const was = S.me; S.me = m.me; W.setMe(meInfo()); paintMe(); if (!S.booted) boot(); if (S.layer === 'locker' || S.layer === 'shop') paintWardrobe(true); },
     authfail() { ident(true); ws.close(); },
     replaced() { replaced = true; layer(`<div class="card modal narrow"><div class="mhead"><h2>Opened elsewhere</h2></div><div class="mbody"><p>FOUND is open in another tab or device. Close that one, then reload here.</p><div class="mfoot"><button class="btn black" onclick="location.reload()">Reload</button></div></div></div>`, 'replaced'); },
     party(m) {
       if (m.now) S.skew = m.now - Date.now();
-      const was = S.party, prev = S.phase; S.party = m; S.phase = m.phase; keepCode(m.code);
+      const was = S.party, prev = S.phase; S.party = m; S.phase = m.phase;
       if (!was || was.code !== m.code) enterParty();
       if (S.practice && m.phase === 'lobby' && m.players.length === 1) { S.practice = false; send({ t: 'start' }); }
       for (const p of m.players) W.upsert(deco(p));
@@ -69,7 +66,7 @@
     round(m) {
       S.round = m; S.moveLeft = 5; W.restless = false; closeLayer('pick'); W.setMap(m.map, m.seed); W.setItems(m.items); paintRole();
       if (!m.role) toast('A round is on. You are watching until the next one.');
-      else if (!S.tipped[m.role]) { S.tipped[m.role] = 1; tip(m.role === 'hider' ? `Hide anywhere: jump (${W.touch ? 'the jump button' : '<kbd>Space</kbd>'}) onto tables, beds and sofas. Change spot every 10 s for +40. Stay still too long and your object starts to twitch.` : W.touch ? 'Walk up to an object and press TAG.' : 'Walk up to an object and press <kbd>E</kbd> or click it.', 9000); }
+      else if (!S.tipped[m.role]) { S.tipped[m.role] = 1; tip(m.role === 'hider' ? `Hide anywhere. Jump onto tables. Move every 10 s for +40.` : W.touch ? 'Walk up to an object and press TAG.' : 'Walk up to an object, press <kbd>E</kbd>.', 6000); }
     },
     taken(m) { const mine = S.me && m.by === S.me.id; W.take(m.item); if (mine) { SFX.pop(); toast('You found a Mystery Box. It is yours after the round.'); } },
     found(m) {
@@ -84,7 +81,7 @@
     restless(m) { W.restless = !!m.on; if (m.on) { SFX.nope(); toast('You have kept still too long: your object is twitching. Move to stop it.'); } paintRole(); },
     bonus(m) { S.moveLeft = m.left; SFX.win(); toast(`+${m.n} for moving to a new spot` + (m.left ? '' : ' (that was the last one)')); paintRole(); },
     results(m) { S.results = m; showResults(); if (m.reward && m.reward.won) SFX.win(); },
-    got(m) { SFX.win(); if (m.why === 'admin') { toast('Admin unlocked. You can switch guns on in the lobby.'); return; } toast(m.why === 'spin' ? (m.box ? 'The wheel gave you a Mystery Box!' : `The wheel gave you ${fmt(m.coins)} coins!`) : `Collected ${fmt(m.coins)} coins.`); },
+    got(m) { SFX.win(); toast(m.why === 'spin' ? (m.box ? 'The wheel gave you a Mystery Box!' : `The wheel gave you ${fmt(m.coins)} coins!`) : `Collected ${fmt(m.coins)} coins.`); },
     sent(m) { toast(`Sent ${fmt(m.n)} coins to ${esc(m.to)}.`); },
     gifted(m) { SFX.win(); toast(`${esc(m.from)} gave you ${fmt(m.n)} coins!`); },
     mini(m) { S.mini = m; const end = Date.now() + m.ms;
@@ -96,7 +93,6 @@
     opened(m) { if (S.reveal) S.reveal.result(m.r); },
     crated(m) { if (S.crate) S.crate.result(m.r); },
     /* guns */
-    guns(m) { toast(m.on ? 'Guns are ON. Press F or tap FIRE.' : 'Guns are off.'); SFX.pop(); },
     shot(m) { W.shot(m); const mine = S.me && m.id === S.me.id, big = (GUNS.BY[m.g] || {}).dmg >= 50; if (mine) { if (big) SFX.boom(); else SFX.pew(0.05); } else SFX.pew(0.018); },
     hit(m) { W.hit(m); if (S.me && m.by === S.me.id) SFX.tick(); if (S.me && m.id === S.me.id) { S.hp = m.hp; paintGun(); const v = $('#hurt'); v.classList.remove('on'); void v.offsetWidth; v.classList.add('on'); } },
     kill(m) {
@@ -109,14 +105,14 @@
     pk(m) { W.pickupGot(m); if (S.me && m.by === S.me.id) { SFX.pop(); toast(({ heal: '+50 HP', shield: 'Shield for 5 seconds', coins: '+1,000 coins', rage: 'Rage: double damage for 8 seconds' })[m.kind] || ''); } },
     spawned(m) { W.spawned(m.id); if (S.me && m.id === S.me.id) { S.dead = false; S.hp = GUNS.HP; W.frozen = false; paintGun(); } },
     bought(m) { SFX.pop(); toast(`Bought ${m.r.name}.`); S.sel = null; },
-    left() { leaveParty(); },
-    err(m) { toast(m.m); SFX.nope(); if (m.of === 'join' || m.of === 'auth') { keepCode(''); if (!S.party) showHome(); } if (m.of === 'open' && S.reveal) S.reveal.fail(); if (m.of === 'crate' && S.crate) S.crate.fail(); }
+    left() { leaveParty(); if (S.explore) { S.explore = false; roam(0); } else send({ t: 'play' }); },
+    err(m) { toast(m.m); SFX.nope(); if ((m.of === 'play' || m.of === 'auth') && !S.party) showHome(); if (m.of === 'open' && S.reveal) S.reveal.fail(); if (m.of === 'crate' && S.crate) S.crate.fail(); }
   };
 
   /* ---------------- boot ---------------- */
   function boot() {
     S.booted = true; $('#boot').classList.add('done'); setTimeout(() => $('#boot').remove(), 700);
-    if (!S.party) showHome();
+    setTimeout(() => { if (!S.party && W.mode === 'home') send({ t: 'play' }); }, 2500);
     if (S.me.daily) setTimeout(() => toast('Your free Mystery Box is waiting in the shop.'), 1400);
   }
   function paintMe() {
@@ -133,26 +129,27 @@
 
   /* ---------------- home and party ---------------- */
   function showHome() {
-    /* the home menu starts folded away: you land in the plaza, walking, with Menu in the corner */
-    $('#roam').hidden = true; W.menuHidden = true; $('#menu-open').hidden = false; $('#home').classList.add('folded');
+    /* only when there is no lobby to be in (offline, or the join failed): the menu stands open in the plaza */
+    $('#roam').hidden = true; W.menuHidden = false; $('#home').classList.remove('folded'); paintMenu();
     W.mode = 'home'; W.role = null; W.blind = false; W.setMap('lobby'); W.keep([]); W.frozen = false; W.tp(0, 8, Math.PI);
     $('#home').hidden = false; $('#hud').hidden = true; $('#blind').hidden = true; touchControls(true);
     W.homeFrame = innerWidth < 760 ? { side: 0, up: 2.6 } : { side: -3.6, up: 1.2 };
   }
+  const paintMenu = () => { const b = $('#back-lobby'); if (b) b.hidden = !!(S.party && S.party.pub); };
   const ROAM = ['house', 'cabin', 'mansion'];
   function roam(i, shuffle) {
     S.roamI = i; const id = ROAM[i], seed = shuffle || !S.roamSeed ? (Math.random() * 1e9) | 0 : S.roamSeed; S.roamSeed = seed;
     W.mode = 'roam'; W.role = null; W.blind = false; W.dead = false; W.frozen = false; W.menuHidden = true; W.keep([]); W.clearItems(); W.setMap(id, seed);
     const c = globalThis.FOUND_LAYOUT.info(id).center; W.tp(c[0], c[1], Math.PI);   /* start in the middle of the house, where hiders start */
-    $('#home').hidden = true; $('#menu-open').hidden = true; $('#hud').hidden = true; $('#roam').hidden = false; touchControls(true);
+    $('#home').hidden = true; $('#hud').hidden = true; $('#roam').hidden = false; touchControls(true);
     $('#roam-name').textContent = globalThis.FOUND_LAYOUT.info(id).name;
   }
   function enterParty() {
-    $('#roam').hidden = true; $('#menu-open').hidden = true;
-    W.mode = 'play'; $('#home').hidden = true; $('#hud').hidden = false; touchControls(true);
-    $('#code-tiles').innerHTML = S.party.code.split('').map(ch => `<b>${ch}</b>`).join(''); W.ring = false;
+    $('#roam').hidden = true;
+    W.mode = 'play'; W.menuHidden = true; $('#home').hidden = true; $('#hud').hidden = false; touchControls(true); W.ring = false;
+    if (S.party.pub && !S.tipped.guns) { S.tipped.guns = 1; setTimeout(() => toast('Guns are on. Kill = +10,000 coins. Step in the ring for a round.'), 900); }
   }
-  function leaveParty() { S.party = null; S.phase = ''; S.round = null; keepCode(''); closeLayer(); W.clearItems(); $('#hud').classList.remove('in-round'); showHome(); }
+  function leaveParty() { S.party = null; S.phase = ''; S.round = null; closeLayer(); W.clearItems(); W.gunsOn = false; S.dead = false; $('#hud').classList.remove('in-round'); $('#hud').hidden = true; }
   function phaseChanged(prev, ph) {
     $('#hud').classList.toggle('in-round', ph !== 'lobby');
     if (ph === 'lobby') { closeLayer('pick'); closeLayer('results'); S.round = null; W.setMap('lobby'); W.ring = false; }
@@ -163,21 +160,19 @@
   /* ---------------- HUD ---------------- */
   function paintHud() {
     const P = S.party; if (!P) return; if (S.layer === 'rules') showRules(); const ph = P.phase, meId = S.me && S.me.id;
-    $('#board').innerHTML = P.players.map(p => {
-      const col = W.PC[p.col % W.PC.length], host = p.id === P.host ? ' <small>HOST</small>' : '';
+    $('#board').innerHTML = (ph === 'lobby' && P.guns ? [...P.players].sort((a, b) => (b.kills || 0) - (a.kills || 0)) : P.players).map(p => {
+      const col = W.PC[p.col % W.PC.length], host = p.id === P.host ? ' <small>★</small>' : '';
       const st = ph === 'lobby' ? (p.ready ? 'READY' : '') : p.spec ? 'WATCHING' : p.role === 'seeker' ? 'SEEKER' : ph === 'pick' ? (p.picked ? 'PICKED' : 'PICKING') : 'HIDER';
       const g = ph === 'lobby' && P.guns, hpbar = g ? `<div class="hpbar"><u style="width:${Math.max(0, Math.min(100, p.hp || 0))}%"></u></div>` : '';
-      return `<div class="prow${p.id === meId ? ' me' : ''}${p.here === false ? ' away' : ''}"><i class="dot" style="background:${col}"></i><span class="nm">${esc(p.name)}${host}</span><span class="st">${g ? (p.dead ? 'OUT' : (p.kills || 0) + ' K') : st}</span>${hpbar}${ph === 'lobby' && !g && p.id !== meId ? `<button class="btn mini-gift" data-a="gift" data-v="${p.id}">Gift 100</button>` : ''}</div>`;
+      return `<div class="prow${p.id === meId ? ' me' : ''}${p.here === false ? ' away' : ''}"><i class="dot" style="background:${col}"></i><span class="nm">${esc(p.name)}${host}${ph === 'lobby' && p.ready ? ' <small>✓</small>' : ''}</span><span class="st">${g ? (p.dead ? 'OUT' : (p.kills || 0) + ' K') : st}</span>${hpbar}${ph === 'lobby' && !g && p.id !== meId ? `<button class="btn mini-gift" data-a="gift" data-v="${p.id}">Gift 100</button>` : ''}</div>`;
     }).join('');
     const lb = $('#lobby-bar');
     if (ph === 'lobby') {
-      const ready = P.players.filter(p => p.ready).length, isHost = P.host === meId, n = P.players.length;
-      const how = P.mode === 'solo' ? 'Practice: you seek 3 hidden objects. Invite a friend for a 1v1.' : P.mode === 'duel' ? '1v1: two rounds, you swap sides.' : `Party of ${n}: ${n >= 7 ? 'two seek' : 'one seeks'}, the rest hide.`;
-      const mi = globalThis.FOUND_LAYOUT.info(P.map), mapB = isHost ? `<button class="btn" data-a="map">Map: ${mi.name}${P.mapPick === 'auto' ? '' : ' ✓'}</button>` : `<div class="hint"><span>Map: <b>${mi.name}</b></span></div>`;
-      const stakeB = P.mode !== 'duel' ? '' : isHost ? `<button class="btn" data-a="stake">Stake: ${P.stake ? fmt(P.stake) : 'none'}</button>` : P.stake ? `<div class="hint"><span>Stake: <b>${fmt(P.stake)}</b> each</span></div>` : '';
-      const me = S.me || {}, gunB = me.admin ? `<button class="btn ${P.guns ? 'black' : ''}" data-a="guns">Guns: ${P.guns ? 'ON' : 'OFF'}</button>` : /louis/i.test(me.name || '') ? `<button class="btn" data-a="admin">Admin</button>` : '';
+      const ready = P.players.filter(p => p.ready).length, isHost = P.host === meId, n = P.players.length, mi = globalThis.FOUND_LAYOUT.info(P.map);
+      const need = n <= 2 ? n : Math.ceil(n * 0.6), status = P.readyAt ? 'Starting…' : n === 1 ? 'Step in the ring to play' : `Step in the ring to start`;
       lb.hidden = false;
-      lb.innerHTML = (P.guns ? `<div class="hint guns-hint"><span>Guns on<small>Free for all · +10,000 a kill · −3,000 if you die</small></span></div>` : '') + gunB + `<div class="hint"><span><b>${how}</b><br>${P.readyAt ? 'Starting…' : `Stand in the READY ring to start · ${ready}/${n}`}</span></div>${mapB}${stakeB}<button class="btn" data-a="rules">Rules${isHost ? '' : ' (view)'}</button>` + (isHost ? `<button class="btn black" data-a="start">Start</button>` : '');
+      lb.innerHTML = `<div class="hint status"><i class="ring-ico"></i><span>${status}</span><b>${P.readyAt ? '' : ready + '/' + need}</b></div>` +
+        `<div class="acts">${isHost ? `<button class="btn" data-a="map">Map: ${mi.name}${P.mapPick === 'auto' ? '' : ' ✓'}</button>` : ''}<button class="btn" data-a="rules">Rules</button>${isHost ? '<button class="btn black" data-a="start">Start</button>' : ''}</div>`;
     } else if (!S.tipUntil || Date.now() > S.tipUntil) lb.hidden = true;
   }
   function tip(html, ms) { const lb = $('#lobby-bar'); lb.hidden = false; lb.innerHTML = `<div class="hint"><span>${html}</span></div>`; S.tipUntil = Date.now() + ms; setTimeout(() => { if (Date.now() >= S.tipUntil && S.phase !== 'lobby') lb.hidden = true; }, ms + 50); }
@@ -266,7 +261,7 @@
     const bar = '<div class="bar"><i id="pick-bar"></i></div>';
     if (O.role === 'seeker') return layer(`<div class="card modal narrow"><div class="mhead"><div><h2>You are the seeker</h2><div class="sub">${head}</div></div></div><div class="mbody"><p class="big">${O.mode === 'solo' ? 'Three objects in the house are hiders. Find them. Tagging an ordinary object costs 10 seconds.' : 'The others are choosing an object to hide as. Tag them to catch them. Tagging an ordinary object costs 10 seconds.'}</p>${bar}</div></div>`, 'pick');
     const card = id => { const o = OBJ.BY[id], T = OBJ.TIERS[o.tier]; return `<button class="pcard${O.mine === id ? ' on' : ''}" data-a="choose" data-v="${id}"><img src="${W.icon(id)}" alt=""><b>${esc(o.name)}</b><span class="tier ${o.tier}">${T.name}</span><small>${T.mult > 1 ? '×' + T.mult + ' points' : 'Hardest to spot'}</small></button>`; };
-    layer(`<div class="card modal"><div class="mhead"><div><h2>Hide as…</h2><div class="sub">${head ? head + ' · ' : ''}Copies of your object are placed around the house too.</div></div></div>
+    layer(`<div class="card modal"><div class="mhead"><div><h2>Hide as…</h2><div class="sub">${head || 'Pick one'}</div></div></div>
       <div class="mbody"><div class="pick-cards">${O.offer.map(card).join('')}</div>${bar}</div></div>`, 'pick');
   }
   /* results */
@@ -371,7 +366,7 @@
     hp.hidden = !on; fb.hidden = !on; $('#keys').hidden = !on || !!W.touch; $('#hud').classList.toggle('guns', on);
     if (!on) { rip.hidden = true; return; }
     const r = myRow() || {}, n = S.hp == null ? GUNS.HP : S.hp; $('#hp-n').textContent = Math.max(0, Math.round(n)); const f = $('#hp-fill'); f.style.transform = `scaleX(${Math.max(0, n / GUNS.HP)})`; f.style.background = n > 50 ? '#2fd84a' : n > 25 ? '#ffc61a' : '#ff3b30';
-    hp.classList.toggle('low', n <= 25); $('#hp-k').textContent = `${r.kills || 0} kill${r.kills === 1 ? '' : 's'}`;
+    hp.classList.toggle('low', n <= 25); $('#hp-k').textContent = `${r.kills || 0} kills`;
     const g = myGun(); if (fb.dataset.g !== g.id) { fb.dataset.g = g.id; $('#fire-i').src = W.itemIcon(g.id, 'gun'); } $('#fire-g').textContent = g.name; rip.hidden = !S.dead;
   }
   /* the FIRE button shows the gun and fills back in as it cools; it lights up while held */
@@ -450,22 +445,19 @@
 
   /* ---------------- actions ---------------- */
   const A = {
-    create() { send({ t: 'create' }); SFX.click(); },
-    join() { const c = $('#code').value.trim().toUpperCase(); if (!/^[A-Z]{4}$/.test(c)) { toast('Party codes are 4 letters.'); return; } send({ t: 'join', code: c }); SFX.click(); },
-    leave() { send({ t: 'leave' }); },
+    play() { $('#home').hidden = true; send({ t: 'play' }); SFX.click(); },
     settings() { showSettings(); SFX.click(); },
     setinv(v) { W.sens.invY = v === '1'; saveSettings(); showSettings(); },
     setsound(v) { muted = v !== '1'; try { localStorage.setItem('found-mute', muted ? '1' : '0'); } catch (e) {} showSettings(); SFX.click(); },
     setreset() { Object.assign(W.sens, SET0); W.setFov(SET0.fov); saveSettings(); showSettings(); },
-    /* fold the home menu away to walk the plaza, or bring it back */
-    menu() { const h = $('#home'), fold = !W.menuHidden; W.menuHidden = fold; h.classList.toggle('folded', fold); $('#menu-open').hidden = !fold; touchControls(fold); SFX.click(); },
+    /* the menu opens over the lobby; M or the x closes it */
+    menu() { const h = $('#home'); h.hidden = !h.hidden; paintMenu(); SFX.click(); },
     /* practice: a party of one starts straight away; the server fills it with computer hiders */
-    practice() { S.practice = true; send({ t: 'create' }); SFX.click(); },
+    practice() { $('#home').hidden = true; S.practice = true; send({ t: 'create' }); SFX.click(); },
     /* explore: any map, alone, no server involved */
-    explore() { roam(0); SFX.click(); },
+    explore() { $('#home').hidden = true; if (S.party) { S.explore = true; send({ t: 'leave' }); } else roam(0); SFX.click(); },
     roamnext() { roam((S.roamI + 1) % ROAM.length); }, roamshuffle() { roam(S.roamI, true); },
-    roamexit() { showHome(); SFX.click(); },
-    copy() { const url = location.origin + '/#' + S.party.code; (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast('Invite link copied. Friends can also type ' + S.party.code + '.'), () => toast('Party code: ' + S.party.code)); },
+    roamexit() { send({ t: 'play' }); SFX.click(); },
     start() { send({ t: 'start' }); },
     choose(v) { if (!S.offer) return; S.offer.mine = v; send({ t: 'choose', obj: v }); SFX.click(); $$('.pcard').forEach(c => c.classList.toggle('on', c.dataset.v === v)); },
     lobby() { send({ t: 'lobby' }); },
@@ -477,33 +469,30 @@
     rules() { showRules(); SFX.click(); },
     rule(v) { const [k, x] = v.split(':'); send({ t: 'rule', k, v: +x }); SFX.click(); },
     stake() { const st = [0, 100, 250, 500], i = st.indexOf(S.party.stake); send({ t: 'stake', n: st[(i + 1) % st.length] }); },
-    locker() { showWardrobe('locker'); }, shop() { showWardrobe('shop'); }, close() { closeLayer(); },
+    locker() { $('#home').hidden = true; showWardrobe('locker'); }, shop() { $('#home').hidden = true; showWardrobe('shop'); }, close() { closeLayer(); },
     wtab(v) { wTab = v; S.sel = null; if (S.stage) S.stage.figure(S.me.look, S.me.pet, myCol(), gunFor()); paintWardrobe(); },
     wear(v) { wear(wTab, v); },
     pick(v) { S.sel = v; tryOn(v); SFX.click(); $$('#lk-body .it').forEach(e => e.classList.toggle('on', e.dataset.v === v)); paintBuy(); },
     buy(v) { send({ t: 'buy', item: v }); },
     hair(v) { setLook('hair', v); }, hc(v) { setLook('hc', +v); }, skin(v) { setLook('skin', +v); },
     col(v) { S.me.col = +v; send({ t: 'equip', col: +v }); if (S.stage) S.stage.figure(S.me.look, S.me.pet, W.PC[+v], gunFor()); paintWardrobe(); },
-    admin() { const code = window.prompt('Admin code'); if (code) send({ t: 'admin', code }); },
-    guns() { send({ t: 'guns', on: !S.party.guns }); SFX.click(); },
     crate() { crateReveal(); },
     daily() { send({ t: 'daily' }); SFX.pop(); }, buybox() { send({ t: 'buybox' }); SFX.click(); }, open() { reveal(); }
   };
   document.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b || b.disabled) return; const a = A[b.dataset.a]; if (a) { e.preventDefault(); ac(); a(b.dataset.v, b); } });
+  $('#home').addEventListener('pointerdown', e => { if (e.target.id === 'home' && S.party) A.menu(); });
   $('#layer').addEventListener('pointerdown', e => { if (e.target.id === 'layer' && ['locker', 'shop'].includes(S.layer)) closeLayer(); });
   $('#name').addEventListener('change', e => { const n = e.target.value.trim(); if (n.length >= 2) send({ t: 'equip', name: n }); });
-  $('#code').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4); });
-  $('#code').addEventListener('keydown', e => { if (e.key === 'Enter') A.join(); });
   addEventListener('keydown', e => {
     if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
-    if (e.key === 'Escape') { if (!S.reveal && ['locker', 'shop'].includes(S.layer)) closeLayer(); return; }
+    if (e.key === 'Escape') { if (!S.reveal && ['locker', 'shop'].includes(S.layer)) closeLayer(); else if (!$('#home').hidden && S.party) A.menu(); return; }
     if (S.layer && S.layer !== 'results') return;
     const k = e.key.toLowerCase();
     if (k === 'e' && !e.repeat) A.tag();
     if (k === 'f') { S.fireHeld = true; fire(); }
     if (gunsOn() && /^[1-9]$/.test(k)) { selectGun(hotGuns()[+k - 1]); return; }   /* with guns on, the number keys pick a gun instead of an emote */
     if (k === '1') send({ t: 'emote', e: 'wave' }); if (k === '2') send({ t: 'emote', e: 'cheer' }); if (k === '3') send({ t: 'emote', e: 'dance' }); if (k === '4') send({ t: 'emote', e: 'spin' }); if (k === '5') send({ t: 'emote', e: 'bow' }); if (k === '6') send({ t: 'emote', e: 'floss' });
-    if (k === 'm' && !e.repeat && W.mode === 'home') A.menu();   /* M opens and closes the home menu; sound is in Settings */
+    if (k === 'm' && !e.repeat && (W.mode === 'play' || W.mode === 'home') && (!S.party || S.phase === 'lobby')) A.menu();   /* M opens and closes the home menu; sound is in Settings */
   });
 
   /* ---------------- touch: joystick and jump ---------------- */

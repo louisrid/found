@@ -89,8 +89,6 @@ input:focus { background: var(--paper); box-shadow: 0 0 0 4px rgba(47, 123, 255,
 .prow.away { opacity: .45; }
 .prow img { width: 26px; height: 26px; margin: -6px 0; }
 .prow .mini { display: flex; align-items: center; gap: 6px; }
-.lobby-bar { position: absolute; left: 90px; right: 90px; bottom: calc(22px + var(--safe-b)); display: flex; gap: 12px; align-items: center; justify-content: center; pointer-events: none; animation: rise .5s var(--ease) both; }
-.lobby-bar > * { pointer-events: auto; }
 .hint { background: var(--paper); border: var(--b) solid var(--ink); border-radius: 14px; padding: 12px 16px; font-weight: 800; box-shadow: var(--sh); display: flex; gap: 10px; align-items: center; }
 .hint kbd { font: 15px var(--display); border: 2px solid var(--ink); border-bottom-width: 4px; border-radius: 6px; padding: 2px 6px; background: var(--soft); }
 .hint .ring-ico { width: 22px; height: 22px; border-radius: 50%; border: 4px solid var(--ink); }
@@ -242,7 +240,7 @@ h4 { margin: 0 0 10px; font: 15px var(--display); text-transform: uppercase; let
   .emotes .ping { position: fixed; right: 18px; bottom: calc(96px + var(--safe-b)); width: 54px; height: 54px; }
   .jump { right: 18px; bottom: calc(30px + var(--safe-b)); width: 54px; height: 54px; }
   .joy { left: 18px; bottom: calc(26px + var(--safe-b)); width: 118px; height: 118px; }
-  .lobby-bar { left: 12px; right: 12px; bottom: calc(166px + var(--safe-b)); flex-wrap: wrap; } .hint { font-size: 15px; padding: 10px 12px; }
+  .hint { font-size: 15px; padding: 10px 12px; }
   .feed { bottom: auto; top: calc(150px + var(--safe-t)); left: 12px; width: 220px; }
   .pick-cards { grid-template-columns: 1fr; } .pcard { grid-template-columns: 76px 1fr; justify-items: start; text-align: left; padding: 10px; } .pcard img { grid-row: span 3; width: 76px; }
   .locker { grid-template-columns: 1fr; } .stage { min-height: 230px; border-right: 0; border-bottom: var(--b) solid var(--ink); }
@@ -353,8 +351,6 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 .seg button:last-child { border-right: 0; } .seg button.on { background: #2f5bff; color: #fff; } .seg button:disabled { cursor: default; }
 @media (max-width: 760px) { .rrow { flex-direction: column; align-items: flex-start; } }
 /* lobby bar: the hint takes its own row so the buttons never squeeze it into a tall column */
-.lobby-bar { flex-wrap: wrap; }
-.lobby-bar > .hint { flex: 1 1 100%; justify-content: center; text-align: center; }
 .seg button small { display: block; font: 15px var(--body); font-weight: 800; text-transform: none; opacity: .85; margin-top: 1px; }
 .seg button { line-height: 1.1; }
 
@@ -405,8 +401,6 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 @media (max-height: 760px) { .home { padding-top: 16px; padding-bottom: 16px; } .home-card { gap: 10px; padding: 20px; } .home-card .logo { max-width: 180px; } .home-card .tag { font-size: 14px !important; } .home-card .btn.big { padding-top: 12px; padding-bottom: 12px; } }
 .home-tools.earn .btn small, .home-tools.solo .btn small { white-space: normal; }
 .home-tools.earn .btn small { font-size: 13px; }
-.hud.in-round .lobby-bar { right: 190px; left: 16px; }
-@media (max-width: 760px) { .hud.in-round .lobby-bar { right: 12px; left: 12px; } }
 
 /* settings */
 .btn.icon.gear { font-size: 22px; line-height: 1; }
@@ -456,9 +450,6 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 .pill.pop { animation: coinpop .5s var(--ease); }
 @keyframes coinpop { 0% { transform: scale(1); } 35% { transform: scale(1.22); background: var(--gold); } 100% { transform: scale(1); } }
 .crate-fx .pill { color: var(--ink); }
-.guns-hint { background: #ff3b30; color: #fff; padding: 8px 14px; flex: 0 0 auto !important; text-transform: uppercase; font: 16px var(--display); }
-.guns-hint span { display: block; }
-.guns-hint small { display: block; font: 12px var(--body); font-weight: 800; opacity: .95; text-transform: none; }
 .hp { position: absolute; left: 50%; top: calc(14px + var(--safe-t)); transform: translateX(-50%); width: clamp(190px, 28vw, 340px); display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: center; pointer-events: none; z-index: 3; }
 .hp-ico { width: 44px; height: 44px; display: grid; place-items: center; font-size: 26px; line-height: 1; color: #fff; background: #ff3b30; border: var(--b) solid var(--ink); border-radius: 50%; box-shadow: 3px 3px 0 var(--ink); text-shadow: 1px 1px 0 var(--ink); }
 .hp i { position: relative; display: block; height: 30px; border: var(--b) solid var(--ink); border-radius: 16px; background: #fff; overflow: hidden; box-shadow: 4px 4px 0 var(--ink); }
@@ -468,10 +459,6 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 .hp em { grid-column: 2; font: 14px var(--display); font-style: normal; text-transform: uppercase; text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff; }
 .hp.low i { animation: lowhp .6s ease-in-out infinite; }
 @keyframes lowhp { 50% { box-shadow: 4px 4px 0 var(--ink), 0 0 0 5px rgba(255, 59, 48, .7); } }
-.keys { position: absolute; right: 16px; bottom: calc(22px + var(--safe-b)); display: grid; gap: 4px; justify-items: end; pointer-events: none; font: 13px var(--display); text-transform: uppercase; z-index: 2; }
-.keys span { background: rgba(255, 255, 255, .92); border: 2px solid var(--ink); border-radius: 9px; padding: 3px 8px; }
-.keys kbd { font: 12px var(--display); background: var(--ink); color: #fff; border-radius: 5px; padding: 1px 6px; margin-right: 4px; }
-.fire { position: absolute; right: 22px; bottom: calc(150px + var(--safe-b)); width: 112px; height: 112px; border-radius: 50%; background: #ff3b30; color: #fff; font: 22px var(--display); display: grid; place-content: center; justify-items: center; text-align: center; box-shadow: 5px 5px 0 var(--ink); touch-action: none; user-select: none; -webkit-user-select: none; overflow: hidden; z-index: 4; padding: 0; }
 .fire img { width: 74px; height: 50px; object-fit: contain; filter: brightness(1.15) drop-shadow(2px 2px 0 rgba(0, 0, 0, .35)); margin-top: -4px; }
 .fire span { margin-top: -2px; text-shadow: 2px 2px 0 var(--ink); }
 .fire small { display: none; }
@@ -488,7 +475,6 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 .prow .hpbar { grid-column: 1 / -1; height: 7px; border: 2px solid var(--ink); border-radius: 5px; background: #fff; overflow: hidden; }
 .prow .hpbar u { display: block; height: 100%; background: #2fd84a; }
 .feed div span { font-size: 17px; }
-@media (max-width: 760px) { .fire { right: 14px; bottom: calc(196px + var(--safe-b)); width: 96px; height: 96px; } .fire img { width: 60px; height: 40px; } .hp { top: calc(72px + var(--safe-t)); width: clamp(170px, 46vw, 260px); } .keys { display: none; } }
 
 /* ---------- the gun crate reveal ---------- */
 .crate-fx { position: fixed; inset: 0; z-index: 40; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; background: #14111f; color: #fff; --b: 5px; }
@@ -607,16 +593,113 @@ p.big { font-size: 18px; margin: 0 0 6px; }
 .home-foot { min-width: 0; flex-wrap: wrap; }
 
 /* the gun hotbar: every gun you own along the bottom, the one in your hand lifted and outlined */
-.hotbar { position: fixed; left: 50%; bottom: calc(14px + var(--safe-b)); transform: translateX(-50%); z-index: 7; display: flex; gap: 8px; max-width: min(94vw, 700px); overflow-x: auto; overflow-y: visible; padding: 14px 12px 12px; scrollbar-width: none; }
-.hotbar::-webkit-scrollbar { display: none; }
-.hotbar[hidden] { display: none; }
 .hotbar .slot { --rc: #8a8a99; flex: none; position: relative; width: 62px; height: 62px; padding: 2px; border: 4px solid var(--ink); border-radius: 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 52%, #fff), color-mix(in srgb, var(--rc) 22%, #fff)); box-shadow: 3px 3px 0 var(--ink); cursor: pointer; transition: transform .15s var(--ease); }
 .hotbar .slot img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
 .hotbar .slot kbd { position: absolute; top: -3px; left: 3px; font: 13px/1 var(--display); color: var(--ink); background: #fff; border: 2px solid var(--ink); border-radius: 6px; padding: 1px 4px; }
 .hotbar .slot.on { transform: translateY(-9px) scale(1.12); box-shadow: 0 0 0 3px #fff, 0 0 0 7px var(--ink), 0 0 20px 4px var(--rc); z-index: 1; }
 .hotbar .slot.r-cosmic { background: linear-gradient(135deg, #ffd1dc, #fff0b3, #c8ffd4, #b8e2ff, #e4c8ff); }
 .hotbar .slot.r-celestial { background: linear-gradient(160deg, #e6fffc, #8ff0e6 48%, #fff6c9); }
-@media (max-width: 760px) { .hotbar { bottom: calc(150px + var(--safe-b)); } .hotbar .slot { width: 54px; height: 54px; } }
 /* guns on: the hotbar sits at the very bottom, so the lobby buttons move up above it */
-.hud.guns .lobby-bar { bottom: calc(104px + var(--safe-b)); }
-@media (max-width: 760px) { .hud.guns .lobby-bar { bottom: calc(238px + var(--safe-b)); } }
+
+/* ---------- v8: the HUD in zones ----------
+   Top row (menu, health, coins), a player list on the right, and ONE bottom dock (status, buttons, gun hotbar) that stacks its own pieces,
+   so nothing sits on top of anything else. Touch screens get a control band (joystick, jump, fire) and the dock rides above it. */
+:root { --gut: 16px; --top: calc(14px + var(--safe-t)); --bot: calc(16px + var(--safe-b)); }
+
+/* top row */
+.hud-tl { top: var(--top); left: var(--gut); gap: 8px; z-index: 3; }
+.hud-tl .btn.icon { width: 46px; height: 46px; font-size: 20px; }
+.hud-tr { top: var(--top); right: var(--gut); gap: 8px; z-index: 3; }
+.hud-tr .btn { font-size: 15px; padding: 11px 14px; }
+.hud-tr .pill { padding: 9px 14px; font-size: 17px; }
+.hp { top: var(--top); width: clamp(180px, 28vw, 320px); grid-template-columns: auto 1fr auto; gap: 8px; }
+.hp-ico { width: 40px; height: 40px; font-size: 22px; box-shadow: 2px 2px 0 var(--ink); }
+.hp i { height: 28px; box-shadow: 3px 3px 0 var(--ink); }
+.hp b { font-size: 17px; }
+.hp em { grid-column: auto; font: 13px/1 var(--display); text-transform: uppercase; background: var(--paper); border: 3px solid var(--ink); border-radius: 999px; padding: 6px 10px; text-shadow: none; box-shadow: 2px 2px 0 var(--ink); white-space: nowrap; }
+
+/* player list, right side */
+.board { top: calc(70px + var(--safe-t)); right: var(--gut); width: 208px; max-height: calc(100dvh - 300px); overflow: auto; scrollbar-width: none; gap: 5px; }
+.board::-webkit-scrollbar { display: none; }
+.prow { padding: 6px 10px; font-size: 15px; }
+.board .prow .nm small { display: inline; margin-left: 3px; font-size: 13px; color: var(--mute); }
+.prow .hpbar { height: 6px; }
+.prow.me { background: var(--yellow); }
+
+/* kill feed: under the buttons in the lobby, bottom-left in a round */
+.feed { left: var(--gut); top: calc(70px + var(--safe-t)); bottom: auto; width: min(260px, 40vw); }
+.hud.in-round .feed { top: auto; bottom: var(--bot); }
+
+/* key hints: a short stack, bottom-left, desktop only */
+.keys { position: absolute; left: var(--gut); bottom: var(--bot); display: grid; gap: 4px; justify-items: start; pointer-events: none; font: 12px var(--display); text-transform: uppercase; z-index: 2; }
+.keys span { background: rgba(255, 255, 255, .9); border: 2px solid var(--ink); border-radius: 9px; padding: 3px 8px; }
+.keys kbd { font: 12px var(--display); background: var(--ink); color: #fff; border-radius: 5px; padding: 1px 6px; margin-right: 4px; }
+
+/* the dock */
+.dock { position: absolute; left: 50%; bottom: var(--bot); transform: translateX(-50%); width: min(720px, calc(100vw - 2 * (var(--gut) + 112px))); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; z-index: 4; }
+.dock > * { pointer-events: auto; }
+.lobby-bar { position: static; display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; animation: rise .4s var(--ease) both; pointer-events: auto; }
+.lobby-bar > * { pointer-events: auto; }
+.lobby-bar .hint { max-width: 100%; text-align: center; justify-content: center; }
+.hint.status { padding: 9px 10px 9px 16px; font-size: 16px; border-radius: 999px; gap: 10px; white-space: nowrap; }
+.hint.status .ring-ico { width: 18px; height: 18px; border-width: 4px; flex: none; }
+.hint.status b { font: 15px/1 var(--display); background: var(--ink); color: var(--paper); border-radius: 999px; padding: 6px 11px; }
+.hint.status b:empty { display: none; }
+.acts { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.hud .lobby-bar .acts .btn { font-size: 15px; padding: 11px 18px; }
+.hud .lobby-bar .acts .btn.black { padding: 11px 28px; }
+
+/* gun hotbar: a plate under the status, each slot the same size */
+.hotbar { position: static; transform: none; display: flex; justify-content: flex-start; justify-content: safe center; gap: 8px; max-width: 100%; padding: 14px 12px 12px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; background: var(--paper); border: 4px solid var(--ink); border-radius: 20px; box-shadow: var(--sh); }
+.hotbar::-webkit-scrollbar { display: none; }
+.hotbar .slot { width: 56px; height: 56px; border-width: 3px; box-shadow: 2px 2px 0 var(--ink); }
+.hotbar .slot.on { transform: scale(1.1); box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--ink), 0 0 16px 4px var(--rc); }
+
+/* fire button: bottom-right, nothing else lives there on a desktop */
+.fire { position: absolute; right: var(--gut); bottom: var(--bot); width: 96px; height: 96px; border-radius: 50%; background: #ff3b30; color: #fff; font: 20px var(--display); display: grid; place-content: center; justify-items: center; text-align: center; box-shadow: 4px 4px 0 var(--ink); touch-action: none; user-select: none; -webkit-user-select: none; overflow: hidden; z-index: 4; padding: 0; }
+.fire img { width: 62px; height: 42px; margin-top: -4px; }
+
+/* the menu opens over the lobby: dimmed, click outside to close */
+.home { z-index: 8; }
+.home:not([hidden]) { pointer-events: auto; background: rgba(11, 11, 15, .32); }
+.home:not([hidden]) ~ .toasts { top: calc(84px + var(--safe-t)); }
+
+/* narrower screens: health drops under the top row, the list becomes a strip of three */
+@media (max-width: 1000px) {
+  .hp { top: calc(68px + var(--safe-t)); width: min(300px, calc(100vw - 2 * var(--gut))); }
+  .board { top: calc(114px + var(--safe-t)); left: var(--gut); right: var(--gut); transform: none; width: auto; max-height: none; overflow: visible; display: flex; flex-wrap: nowrap; justify-content: center; gap: 6px; pointer-events: none; }
+  .prow { padding: 4px 10px; font-size: 14px; grid-template-columns: 10px auto auto; flex: none; box-shadow: 2px 2px 0 var(--ink); }
+  .prow .hpbar, .prow:nth-child(n+4) { display: none; }
+  .board .prow { pointer-events: auto; flex: 0 1 auto; min-width: 0; } .prow .nm { min-width: 0; }
+  .prow .dot { width: 10px; height: 10px; }
+  .feed { top: calc(158px + var(--safe-t)); width: min(220px, 52vw); }
+  .keys { display: none !important; }
+}
+/* touch: joystick bottom-left, jump and fire stacked bottom-right, the dock rides above that band */
+@media (pointer: coarse), (max-width: 760px) {
+  .joy { left: 14px; bottom: calc(18px + var(--safe-b)); width: 112px; height: 112px; }
+  .jump { right: 16px; bottom: calc(18px + var(--safe-b)); width: 58px; height: 58px; }
+  .fire { right: 12px; bottom: calc(88px + var(--safe-b)); width: 84px; height: 84px; font-size: 18px; }
+  .fire img { width: 54px; height: 36px; }
+  .actions { right: 14px; bottom: calc(92px + var(--safe-b)); }
+  .dock { bottom: calc(184px + var(--safe-b)); width: calc(100vw - 2 * var(--gut)); }
+  .hud.in-round .feed { bottom: calc(150px + var(--safe-b)); }
+  .hotbar .slot { width: 50px; height: 50px; }
+}
+@media (max-width: 760px) {
+  .hud-tl { left: 12px; } .hud-tr { right: 12px; gap: 6px; }
+  .hud-tl .btn.icon { width: 42px; height: 42px; font-size: 18px; }
+  .hud-tr .pill { display: inline-flex; padding: 8px 11px; font-size: 14px; }
+  .hud-tr .btn { font-size: 13px; padding: 10px 11px; }
+  .hint.status { font-size: 14px; padding: 8px 8px 8px 14px; }
+  .hud .lobby-bar .acts .btn { font-size: 14px; padding: 10px 14px; }
+}
+@media (max-width: 420px) {
+  .hud-tl { gap: 6px; } .hud-tl .btn.icon { width: 38px; height: 38px; }
+  .hud-tr .pill { padding: 7px 9px; font-size: 13px; } .hud-tr .btn { font-size: 12px; padding: 9px 9px; }
+}
+/* short windows: the player list steps aside so it never meets the dock */
+@media (max-height: 640px) { .board { display: none; } }
+/* toasts and the role card clear the rows above them */
+@media (max-width: 1000px) { .toasts { top: calc(158px + var(--safe-t)); } }
+@media (max-width: 760px) { .target { top: calc(80px + var(--safe-t)); } .hud .timer { top: calc(10px + var(--safe-t)); } }

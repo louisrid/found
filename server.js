@@ -67,8 +67,17 @@ function join(c, party) {
   if (c.party && c.party !== party) leave(c);
   c.party = party; party.add(c.prof, c);
 }
+/* everyone lands in the same public lobby; a new one opens only when the current ones are full (and a lobby that is waiting beats one mid-round) */
+function publicParty() {
+  let best = null, bs = -1;
+  for (const p of parties.values()) { if (!p.pub || p.players.size >= p.cfg.maxPlayers) continue; const sc = (p.phase === 'lobby' ? 100 : 0) + p.players.size; if (sc > bs) { best = p; bs = sc; } }
+  if (best) return best;
+  const party = new Party(newCode(new Set(parties.keys())), io, Object.assign({}, partyOpts, { pub: true })); parties.set(party.code, party); return party;
+}
 
 const handlers = {
+  /* the way in: the shared public lobby. (create and join stay for the practice room and the tests; the game shows no codes) */
+  play(c) { join(c, publicParty()); },
   create(c) { const party = new Party(newCode(new Set(parties.keys())), io, partyOpts); parties.set(party.code, party); join(c, party); },
   join(c, b) {
     const code = String(b.code || '').toUpperCase().replace(/[^A-Z]/g, '');
@@ -100,15 +109,6 @@ const handlers = {
   minipick(c, b) { const g = c.mini; c.mini = null; if (!g) return; const win = Number(b.i) === g.at && Date.now() <= g.until + 500, coins = win ? P.miniWin(c.prof, Date.now()) : 0; if (coins) store.touch(c.prof.id); send(c, { t: 'minires', win, coins, at: g.at }); me(c); },
   gift(c, b) { const party = need(c), to = party.players.get(String(b.to)); if (!to) throw new Error('They left.'); P.giveCoins(c.prof, to.prof, Number(b.n)); store.touch(c.prof.id); store.touch(to.prof.id); me(c); send(c, { t: 'sent', n: Number(b.n), to: to.prof.name }); if (to.conn) { send(to.conn, { t: 'gifted', from: c.prof.name, n: Number(b.n) }); me(to.conn); } },
   daily(c) { P.claimDaily(c.prof, Date.now()); store.touch(c.prof.id); me(c); },
-  /* guns: only the admin can switch them on. The admin unlocks once with ADMIN_CODE (set on the server, never in the repo); the profile then remembers it */
-  admin(c, b) {
-    const want = process.env.ADMIN_CODE || ''; if (!want) throw new Error('Admin is off. Set ADMIN_CODE on the server first.');
-    if ((c.adminTries = (c.adminTries || 0) + 1) > 5) throw new Error('Too many tries. Reload and try again.');
-    const h = s => crypto.createHash('sha256').update(String(s)).digest();
-    if (!crypto.timingSafeEqual(h(want), h(b.code || ''))) throw new Error('Wrong admin code.');
-    c.prof.admin = true; store.touch(c.prof.id); me(c); send(c, { t: 'got', coins: 0, why: 'admin' });
-  },
-  guns(c, b) { const party = need(c); if (!c.prof.admin) throw new Error('Only the admin can do that.'); party.setGuns(!!b.on); },
   shoot(c, b) { const party = c.party; if (party) party.shoot(party.players.get(c.prof.id), b); },
   /* the gun crate: pay, get a random gun, see it in the reveal */
   crate(c) { const r = P.openCrate(c.prof); store.touch(c.prof.id); send(c, { t: 'crated', r }); me(c); if (c.party) c.party.sync(); }
@@ -146,9 +146,10 @@ function auth(c, b) {
   const old = online.get(id); if (old && old !== c) { send(old, { t: 'replaced' }); old.ws.close(4000, 'replaced'); }
   c.prof = prof; online.set(id, c);
   send(c, { t: 'me', me: P.privateOf(prof, Date.now()), build: BUILD });
-  /* back into the party this player was in (reconnects, refreshes) */
+  /* back into the party this player was in (reconnects, refreshes), otherwise the public lobby */
   const code = String(b.code || '').toUpperCase();
   if (/^[A-Z]{4}$/.test(code) && parties.has(code)) join(c, parties.get(code));
+  else if (b.auto) { const mine = [...parties.values()].find(q => q.players.has(id)); join(c, mine || publicParty()); }
 }
 
 /* positions out 15 times a second; the clock 5 times a second; dead sockets out every 20 s */

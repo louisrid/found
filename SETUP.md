@@ -8,7 +8,7 @@
    npm start
    ```
 3. Open http://localhost:3000. Open it in a second browser window to play against yourself.
-4. Press **Create party**, send a friend the 4-letter code. Both stand in the READY ring.
+4. You land in the shared lobby automatically. Step into the READY ring (a 60% majority of the room starts a round).
 
 Profiles save to `data/found.json`. Delete that file to reset everyone.
 
@@ -22,7 +22,6 @@ Profiles save to `data/found.json`. Delete that file to reset everyone.
 3. Optional but recommended: add a free Postgres database and set its URL as `DATABASE_URL`
    on the service, so coins and items survive restarts. (This path is written but untested
    against a real database; check a profile survives one restart before inviting people.)
-4. **Guns (admin):** on Render, open the service, Environment, add `ADMIN_CODE` with a private code only you know. In a party lobby, press **Admin**, enter the code once (your profile remembers it), then press **Guns: ON**. Nobody else can switch guns on. Locally: `ADMIN_CODE=mycode npm start`.
 5. Send friends your `https://....onrender.com` link. `/#CODE` joins a party directly.
 
 Run one instance only: parties live in memory.
@@ -36,7 +35,7 @@ Run one instance only: parties live in memory.
 
 ## Guns and crates
 - **Double-tap A or D** to barrel roll sideways (dodges shots). On a phone, flick the joystick left or right twice.
-- Guns are on in every lobby by default (the admin can switch them off). **Hold F**, hold the **FIRE** button or hold **right-click** to shoot; shots aim at whoever is in front of you. 100 HP, 10,000 coins per kill and 3,000 lost when you die, with hearts, shields, coin bags and rage orbs spawning on the grass, back after 3 seconds.
+- Everyone joins one public lobby automatically (no codes), and guns are always on there. **Hold F**, hold the **FIRE** button or hold **right-click** to shoot; shots aim at whoever is in front of you. 100 HP, 10,000 coins per kill and 3,000 lost when you die, with hearts, shields, coin bags and rage orbs spawning on the grass, back after 3 seconds.
 - Everyone earns **1,000 coins a minute** while connected. The **Gun Crate** is in the shop (Guns tab): 500 coins, rolls Common to Cosmic by its odds, duplicates pay 10% back. 27 guns; the Locker and Shop have a **Guns** tab.
 
 ## Checking it works

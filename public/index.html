@@ -15,26 +15,20 @@
 
 <div id="boot" class="boot"><img src="logo.svg?v=__V__" alt="FOUND"><i class="boot-cube"></i><p id="boot-msg">Loading</p></div>
 
-<!-- home: name, create or join a party, shop and locker -->
+<!-- menu: name, shop, locker, practice, explore. Opens over the lobby; there are no party codes, everyone shares one lobby -->
 <section id="home" class="home" hidden>
   <div class="card home-card">
-    <button class="btn icon gear home-gear" data-a="settings" title="Settings" aria-label="Settings">&#x2699;</button>
-    <button class="btn icon home-min" data-a="menu" title="Hide menu and walk around" aria-label="Hide menu">&#x2013;</button>
+    <button class="btn icon home-min" data-a="menu" title="Close" aria-label="Close menu">&#x2715;</button>
     <img class="logo" src="logo.svg?v=__V__" alt="FOUND">
-    <p class="tag">Hide as an object. Don't get found.</p>
     <label class="field"><span>Your name</span><input id="name" maxlength="14" autocomplete="off" spellcheck="false"></label>
-    <button class="btn black big" data-a="create">Create party</button>
-    <div class="join-row">
-      <input id="code" class="code-in" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Party code">
-      <button class="btn big" data-a="join">Join</button>
-    </div>
-    <div class="home-tools solo">
-      <button class="btn big" data-a="practice">Practice<small>Seek 3 hiders, alone</small></button>
-      <button class="btn big" data-a="explore">Explore<small>Walk the maps</small></button>
-    </div>
+    <button class="btn black big" data-a="play" id="back-lobby" hidden>Back to the lobby</button>
     <div class="home-tools">
       <button class="btn big" data-a="shop">Shop<i class="badge shop-badge" hidden></i></button>
       <button class="btn big" data-a="locker">Locker</button>
+    </div>
+    <div class="home-tools solo">
+      <button class="btn big" data-a="practice">Practice<small>Alone, vs bots</small></button>
+      <button class="btn big" data-a="explore">Explore<small>Walk the maps</small></button>
     </div>
     <div class="home-tools earn">
       <button class="btn" data-a="idle" id="idle-b">Collect</button>
@@ -45,9 +39,6 @@
   </div>
 </section>
 
-<!-- the home menu folded away: walk the plaza; tap to bring the menu back -->
-<div id="menu-open" class="menu-open-row" hidden><button class="btn menu-open" data-a="menu" title="Menu (M)">Menu <kbd>M</kbd></button><button class="btn icon gear" data-a="settings" title="Settings" aria-label="Settings">&#x2699;</button></div>
-
 <!-- explore: walk any map alone, no party -->
 <div id="roam" class="roam" hidden>
   <button class="btn icon" data-a="roamexit" title="Back" aria-label="Back">&#x2715;</button>
@@ -55,20 +46,19 @@
   <div class="roam-chip"><b id="roam-name">House</b><button class="btn sm" data-a="roamnext">Next map</button><button class="btn sm" data-a="roamshuffle">Rearrange</button></div>
 </div>
 
-<!-- in a party. Lobby-only pieces carry .lobby-only and vanish during a round. -->
+<!-- the lobby and rounds. Lobby-only pieces carry .lobby-only and vanish during a round. Everything along the bottom lives in #dock so nothing overlaps. -->
 <section id="hud" class="hud" hidden>
   <div class="hud-tl">
-    <button class="btn icon" data-a="leave" title="Leave party" aria-label="Leave party">&#x2715;</button>
+    <button class="btn icon lobby-only" data-a="menu" title="Menu (M)" aria-label="Menu">&#x2630;</button>
     <button class="btn icon gear" data-a="settings" title="Settings" aria-label="Settings">&#x2699;</button>
-    <div class="party-chip lobby-only"><div class="code-tiles" id="code-tiles"></div><button class="btn sm" data-a="copy">Invite</button></div>
   </div>
+  <div class="hp" id="hp" hidden><span class="hp-ico">&#x2665;</span><i><u id="hp-fill"></u><b id="hp-n">100</b></i><em id="hp-k">0</em></div>
   <div class="hud-tr lobby-only">
     <span class="pill coin coins"></span>
     <button class="btn" data-a="shop">Shop<i class="badge shop-badge" hidden></i></button>
     <button class="btn" data-a="locker">Locker</button>
   </div>
   <aside class="board lobby-only" id="board"></aside>
-  <div class="lobby-bar" id="lobby-bar"></div>
   <div class="target" id="role" hidden></div>
   <div class="timer" id="timer" hidden></div>
   <div class="feed" id="feed"></div>
@@ -76,9 +66,11 @@
     <button class="btn tag-btn" data-a="tag" id="tag">Tag</button>
   </div>
   <div class="big-count" id="big-count" hidden></div>
-  <div class="hp" id="hp" hidden><span class="hp-ico">&#x2665;</span><i><u id="hp-fill"></u><b id="hp-n">100</b></i><em id="hp-k">0 kills</em></div>
-  <div class="keys" id="keys" hidden><span><kbd>WASD</kbd> move</span><span><kbd>Space</kbd> jump</span><span><kbd>A A</kbd> <kbd>D D</kbd> roll</span><span><kbd>1-9</kbd> pick gun</span><span><kbd>F</kbd> hold to fire</span><span><kbd>Right-click</kbd> fire</span></div>
-  <div class="hotbar" id="hotbar" hidden aria-label="Your guns"></div>
+  <div class="keys" id="keys" hidden><span><kbd>WASD</kbd> move</span><span><kbd>Space</kbd> jump</span><span><kbd>F</kbd> fire</span><span><kbd>1-9</kbd> guns</span></div>
+  <div class="dock" id="dock">
+    <div class="lobby-bar" id="lobby-bar"></div>
+    <div class="hotbar" id="hotbar" hidden aria-label="Your guns"></div>
+  </div>
   <button class="btn fire" id="fire" hidden aria-label="Fire (hold)"><img id="fire-i" alt=""><span>FIRE</span><small id="fire-g">F</small></button>
   <div class="rip" id="rip" hidden><h2>You're out</h2><p>Back in <b id="rip-n">3</b></p></div>
   <div class="hurt" id="hurt"></div>
