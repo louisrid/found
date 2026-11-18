@@ -299,7 +299,7 @@ test('free for all: a kill pays 12,000, dying costs 4,000, the same victim twice
   /* pickups */
   adv(CFG.respawnMs + 50); for (const p of ps) { p.x = 0; p.z = 0; p.shield = 0; p.hp = 150; } pa.pickups = []; pa.pickAt = 0; adv(10); assert.equal(pa.pickups.length, 1); assert.deepEqual(Object.keys(pa.state().pk[0]).length, 4);
   for (let i = 0; i < 30; i++) adv(CFG.pickupMs + 10); assert.ok(pa.pickups.length <= pa.cfg.pickupMax && pa.pickups.length >= 5, 'they keep spawning up to a limit: ' + pa.pickups.length);
-  const k = { id: 99, kind: 'heal', x: 3, z: 3 }; pa.pickups.push(k); b.x = 3; b.z = 3; b.hp = 150; adv(100); assert.ok(pa.pickups.includes(k), 'a full-health player leaves a heart'); b.hp = 30; adv(100); assert.ok(!pa.pickups.includes(k) && b.hp === 90, 'a heart heals 60');
+  const k = { id: 99, kind: 'heal', x: 3, z: 3 }; pa.pickups.push(k); b.x = 3; b.z = 3; b.hp = 150; adv(100); assert.ok(pa.pickups.includes(k), 'a full-health player leaves a heart'); b.hp = 30; adv(100); assert.ok(!pa.pickups.includes(k) && b.hp >= 90, 'a heart heals 60 (and the safe zone is mending b too)');
   const cn = { id: 100, kind: 'coins', x: 3, z: 3 }; pa.pickups.push(cn); const c0 = b.prof.coins; adv(100); assert.equal(b.prof.coins, c0 + 5000);
   const rg = { id: 101, kind: 'rage', x: 3, z: 3 }; pa.pickups.push(rg); adv(100); assert.ok(b.rageUntil > pa.now()); b.x = 20; b.z = 10; a.x = 20; a.z = 0; c.x = 50; c.z = 30; a.hp = 150; adv(400); pa.shoot(b, { ry: Math.PI }); assert.equal(a.hp, 150 - 12 * 2, 'rage doubles damage');
   const sh = { id: 102, kind: 'shield', x: 3, z: 3 }; pa.pickups.push(sh); b.x = 3; b.z = 3; adv(100); assert.ok(b.shield > pa.now(), 'a shield pickup'); pa.setGuns(false); assert.equal(pa.pickups.length, 0, 'switching guns off clears them');
@@ -351,7 +351,7 @@ test('armour adds health and cuts damage; its abilities work (thorns, dodge, las
   /* dodge */
   const d = party(2, () => 0), [a2, b2] = d.ps; d.pa.setGuns(true); b2.prof.own.push('a_phantom'); b2.prof.look.armor = 'a_phantom'; d.pa.fill(b2); a2.x = 20; a2.z = 0; b2.x = 20; b2.z = 10; a2.shield = b2.shield = 0; d.adv(400); d.pa.shoot(a2, { ry: 0 }); assert.equal(b2.hp, d.pa.mh(b2), 'a dodge takes no damage');
   /* regen starts only after 4 s without being hit */
-  const r = party(2, () => 0.5), [a3, b3] = r.ps; r.pa.setGuns(true); b3.prof.own.push('a_shell'); b3.prof.look.armor = 'a_shell'; r.pa.fill(b3); b3.hp = 50; b3.hurtAt = r.pa.now(); r.adv(2000); assert.equal(b3.hp, 50, 'not yet'); r.adv(4000); assert.ok(b3.hp > 50, 'then it heals: ' + b3.hp);
+  const r = party(2, () => 0.5), [a3, b3] = r.ps; r.pa.setGuns(true); b3.prof.own.push('a_shell'); b3.prof.look.armor = 'a_shell'; r.pa.fill(b3); b3.x = 40; b3.z = 40; b3.hp = 50; b3.hurtAt = r.pa.now(); r.adv(2000); assert.equal(b3.hp, 50, 'not yet'); r.adv(4000); assert.ok(b3.hp > 50, 'then it heals: ' + b3.hp);
   /* berserk */
   const z = party(2, () => 0.5), [a4, b4] = z.ps; z.pa.setGuns(true); a4.prof.own.push('a_berserk'); a4.prof.look.armor = 'a_berserk'; z.pa.fill(a4); a4.prof.gun = 'g_pop'; a4.x = 20; a4.z = 0; b4.x = 20; b4.z = 10; a4.shield = b4.shield = 0; a4.hp = 20; z.adv(400); z.pa.shoot(a4, { ry: 0 }); assert.equal(b4.hp, 150 - Math.round(12 * 1.4), 'berserk: +40% when low');
 });
@@ -364,6 +364,21 @@ test('gun abilities: lifesteal, burn, pierce, chain, splash, crit', () => {
   s = mk('g_nova'); s.d.x = 23; s.adv(400); s.pa.shoot(s.a, { ry: 0 }); assert.ok(s.b.hp < 150 && s.d.hp < 150, 'splash hurts the neighbour, ' + s.d.hp);
   s = mk('g_gilded'); let crits = 0; for (let i = 0; i < 40; i++) { s.b.hp = 150; s.pa.rnd = () => (i % 5 === 0 ? 0.05 : 0.5); s.adv(500); s.pa.shoot(s.a, { ry: 0 }); if (150 - s.b.hp > 46) crits++; } assert.ok(crits >= 6 && crits <= 10, 'about one shot in five is a crit: ' + crits);
   assert.ok(G0.LIST.filter(g => g.ab).length >= 5 && G0.LIST.filter(g => g.ab).length <= 9, 'only a handful of special guns');
+});
+
+
+test('healing: the marble mends you fast, and out in the open you slowly mend after 6 s without a fight', () => {
+  const { pa, ps, adv } = party(2, () => 0.5), [a, b] = ps, S = globalThis.FOUND_LAYOUT.lobby.safe; pa.setGuns(true);
+  b.x = S.x; b.z = S.z; b.hp = 20; b.hurtAt = pa.now(); for (let i = 0; i < 4; i++) adv(250); assert.ok(b.hp >= 40, 'on the marble: ' + b.hp); for (let i = 0; i < 40; i++) adv(250); assert.equal(b.hp, pa.mh(b), 'full in a few seconds');
+  b.x = 40; b.z = 40; b.hp = 20; b.hurtAt = pa.now(); for (let i = 0; i < 12; i++) adv(250); assert.equal(b.hp, 20, 'no healing right after a fight'); for (let i = 0; i < 20; i++) adv(250); assert.ok(b.hp > 20 && b.hp < 50, 'then a slow mend: ' + b.hp);
+});
+test('the arena is huge and full of cover that blocks movement and shots', () => {
+  const L = globalThis.FOUND_LAYOUT.lobby, S = L.safe; assert.ok(L.bounds.r >= 140 && L.colliders.length >= 100, 'a big arena with plenty of cover');
+  for (const c of L.colliders) { assert.ok(Math.hypot((c.x0 + c.x1) / 2 - S.x, (c.z0 + c.z1) / 2 - S.z) > S.r + 15, 'no cover near the safe zone'); assert.ok(Math.hypot(c.x1, c.z1) < L.bounds.r && Math.hypot(c.x0, c.z0) < L.bounds.r); }
+  const { pa, ps, adv } = party(2, () => 0.5), [a, b] = ps; pa.setGuns(true); a.prof.gun = 'g_pop';
+  const c = L.colliders.find(k => k.x1 - k.x0 > 2 && Math.hypot(k.x0, k.z0 - 8) < 90); const cx = (c.x0 + c.x1) / 2, cz = c.z0;
+  a.x = cx; a.z = cz - 8; b.x = cx; b.z = cz - 8 + 14; a.shield = b.shield = 0; /* b is on the far side of the cover from a */ b.z = c.z1 + 3; adv(400); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, pa.mh(b), 'cover blocks the shot');
+  b.z = cz - 8 + 14 > c.z0 ? c.z0 - 3 : b.z; a.z = b.z - 10; adv(400); pa.shoot(a, { ry: 0 }); assert.ok(b.hp < pa.mh(b), 'with nothing in the way it lands');
 });
 
 console.log(`\n${n} unit tests passed`);

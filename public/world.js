@@ -110,13 +110,25 @@
     /* the lawn: pixel grass, with little tufts and flowers. Nothing else stands here. */
     const PR = L.bounds.r + 3, lawn = texPlane(PR * 2, PR * 2, 'grass', '#ffffff', '#d8d8d8', 0, 0.02, 0); lawn.geometry = new THREE.CircleGeometry(PR, 96); lawn.material.color.set('#34e052'); g.add(lawn);
     const tb = new Batch(), rnd = seeded(777), greens = ['#22b83a', '#2fd84a', '#4be36a'], petals = ['#ffffff', '#ffd60a', '#ff8ad8', '#ff4b3e', '#7ad8ff'];
-    for (let i = 0; i < 260; i++) {
+    for (let i = 0; i < 1500; i++) {
       const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * (PR - 2), x = Math.sin(a) * r, z = Math.cos(a) * r;
       if (Math.hypot(x - L.safe.x, z - L.safe.z) < L.safe.r - 0.5) continue;
       if (rnd() < 0.12) { tb.box(0.08, 0.34, 0.08, '#16a83a', x, 0.17, z, 0); tb.box(0.26, 0.16, 0.26, petals[(rnd() * petals.length) | 0], x, 0.42, z, 0.02); continue; }
       const col = greens[(rnd() * greens.length) | 0], h = 0.26 + rnd() * 0.22; tb.box(0.12, h, 0.12, col, x, h / 2, z, 0); tb.box(0.12, h * 0.7, 0.12, col, x + 0.16, h * 0.35, z + 0.06, 0); tb.box(0.12, h * 0.85, 0.12, shade(col, 1.15), x - 0.1, h * 0.42, z + 0.14, 0);
     }
     g.add(tb.build({ shadow: false }));
+    /* cover: rocks, stone walls and crate stacks (the colliders in layout.js), and a thick ring of trees around the edge of the arena */
+    const cb = new Batch(), stone = ['#9aa0ab', '#8a909b', '#aab0ba', '#7f8590'];
+    for (const c of L.colliders) { const w = c.x1 - c.x0, d = c.z1 - c.z0, cx = (c.x0 + c.x1) / 2, cz = (c.z0 + c.z1) / 2, h = c.h;
+      if (c.kind === 'rock') { cb.box(w, h, d, stone[c.v], cx, h / 2, cz, 0.06); cb.box(w * 0.66, h * 0.28, d * 0.66, stone[(c.v + 1) % 4], cx + w * 0.05, h + h * 0.14, cz - d * 0.04, 0.05); cb.box(w * 0.3, h * 0.18, d * 0.3, '#4be36a', cx - w * 0.2, h + h * 0.04, cz + d * 0.2, 0.03); }
+      else if (c.kind === 'wall') { cb.box(w, h, d, '#c9b79a', cx, h / 2, cz, 0.06); cb.box(w + 0.24, 0.34, d + 0.24, '#e6dcc8', cx, h + 0.17, cz, 0.05); const long = w > d, n = Math.floor((long ? w : d) / 2.2); for (let k = 1; k < n; k++) { const o = -(long ? w : d) / 2 + k * (long ? w : d) / n; cb.box(long ? 0.1 : w + 0.04, h * 0.94, long ? d + 0.04 : 0.1, '#a8957a', cx + (long ? o : 0), h / 2, cz + (long ? 0 : o), 0); } }
+      else { const hh = h / 2; cb.box(w, hh, d, '#c88a4a', cx, hh / 2, cz, 0.06); cb.box(w * 0.86, hh, d * 0.86, '#b87a3a', cx + w * 0.04, hh + hh / 2, cz - d * 0.03, 0.06); cb.box(w + 0.04, 0.16, d + 0.04, '#6b4423', cx, hh / 2, cz, 0); cb.box(w * 0.86 + 0.04, 0.16, d * 0.86 + 0.04, '#6b4423', cx + w * 0.04, hh + hh / 2, cz - d * 0.03, 0); } }
+    g.add(cb.build());
+    const eb = new Batch(), er = seeded(515);
+    for (let i = 0; i < 320; i++) { const a = er() * Math.PI * 2, d = L.bounds.r + 4 + er() * 80, x = Math.sin(a) * d, z = Math.cos(a) * d, k = 0.9 + er() * 0.7;
+      eb.at(new THREE.Matrix4().makeRotationY(er() * 3).setPosition(x, 0, z)); eb.box(1.2 * k, 3.4 * k, 1.2 * k, C.wood3, 0, 1.7 * k, 0, 0.05);
+      [[3.6, 2.2, 3.6, 0, 4.6, 0], [2.6, 1.6, 2.6, 0.5, 6.2, -0.3], [2.4, 1.4, 2.0, -1.1, 5.2, 0.9]].forEach((q, j) => eb.box(q[0] * k, q[1] * k, q[2] * k, j % 2 ? C.leaf2 : C.leaf, q[3] * k, q[4] * k, q[5] * k, 0.06)); }
+    eb.at(null); g.add(eb.build());
     /* the golden safe zone around the spawn: a bright ring on the grass, a soft gold floor, a faint wall and a SAFE label */
     const SZ = L.safe, GOLD = 0xffc400, gold = (o, op) => new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide });
     /* a white marble platform under it: a big flat disc of veined marble with a paler border, a gold ring at its edge and a thin gold ring inside */
@@ -346,15 +358,15 @@
     const g = new THREE.Group(); groups.out = g; scene.add(g); const F = LAY.map('mansion', 0).fence;
     const grass = texPlane(2400, 2400, 'grass', '#ffffff', '#ececec', 0, 0, 0); grass.material.color.set('#2fd84a'); g.userData.grass = grass; Object.assign(grass.material, { polygonOffset: true, polygonOffsetFactor: 6, polygonOffsetUnits: 6 }); g.add(grass);
     /* the world goes on past the fence: a loose ring of trees out to the horizon */
-    const far = new Batch(), fr = seeded(9091);
+    const far = new Batch(), inner = new Batch(), fr = seeded(9091);
     for (let i = 0; i < 140; i++) {
       const a = fr() * Math.PI * 2, d = 78 + fr() * 190, x = Math.sin(a) * d, z = Math.cos(a) * d * 1.05; if (x > F.x0 - 10 && x < F.x1 + 10 && z > F.z0 - 10 && z < F.z1 + 10) continue;
-      const s = 0.9 + fr() * 0.7, ry = fr() * 3; far.at(new THREE.Matrix4().makeRotationY(ry).setPosition(x, 0, z));
-      far.box(1.2 * s, 3.4 * s, 1.2 * s, C.wood3, 0, 1.7 * s, 0, 0.05);
-      [[3.6, 2.2, 3.6, 0, 4.6, 0], [2.6, 1.6, 2.6, 0.5, 6.2, -0.3], [2.4, 1.4, 2.0, -1.1, 5.2, 0.9]].forEach((q, j) => far.box(q[0] * s, q[1] * s, q[2] * s, j % 2 ? C.leaf2 : C.leaf, q[3] * s, q[4] * s, q[5] * s, 0.06));
-      if (fr() < 0.35) far.box(2.6 * s, 1.4 * s, 2.2 * s, C.leaf, 3 * s, 0.7 * s, 1 * s, 0.05);
+      const s = 0.9 + fr() * 0.7, ry = fr() * 3; const TB = d < 150 ? inner : far; TB.at(new THREE.Matrix4().makeRotationY(ry).setPosition(x, 0, z));
+      TB.box(1.2 * s, 3.4 * s, 1.2 * s, C.wood3, 0, 1.7 * s, 0, 0.05);
+      [[3.6, 2.2, 3.6, 0, 4.6, 0], [2.6, 1.6, 2.6, 0.5, 6.2, -0.3], [2.4, 1.4, 2.0, -1.1, 5.2, 0.9]].forEach((q, j) => TB.box(q[0] * s, q[1] * s, q[2] * s, j % 2 ? C.leaf2 : C.leaf, q[3] * s, q[4] * s, q[5] * s, 0.06));
+      if (fr() < 0.35) TB.box(2.6 * s, 1.4 * s, 2.2 * s, C.leaf, 3 * s, 0.7 * s, 1 * s, 0.05);
     }
-    far.at(null); g.add(far.build());
+    far.at(null); inner.at(null); g.add(far.build()); const im = inner.build(); g.add(im); g.userData.inner = im;   // the nearer trees are only shown with the house maps; the lobby arena is wide open
   }
   function addCanopy(g, f) {
     const b = new Batch(), sz = [[3.6, 2.2, 3.6, 0, 4.6, 0], [2.6, 1.6, 2.6, 0.5, 6.2, -0.3], [2.4, 1.4, 2.0, -1.1, 5.2, 0.9], [1.8, 1.2, 1.8, 1.3, 5.0, 1.0]];
@@ -603,6 +615,7 @@
   const GROUND = { lobby: '#2fd84a', cabin: '#f0a02c', house: '#2fd84a', mansion: '#eef4ff' };
   W.setMap = function (kind, seed) {
     if (groups.out && groups.out.userData.grass) groups.out.userData.grass.material.color.set(GROUND[kind] || GROUND.house);
+    if (groups.out && groups.out.userData.inner) groups.out.userData.inner.visible = kind !== 'lobby';
     const key = kind === 'lobby' ? 'lobby' : 'm:' + kind + ':' + (seed >>> 0);
     if (kind !== 'lobby' && !groups[key]) {
       for (const k of Object.keys(groups)) if (k.startsWith('m:')) { const g = groups[k]; g.userData.dead = true; scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material.map) o.material.map.dispose(); }); delete groups[k]; }

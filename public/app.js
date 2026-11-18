@@ -152,7 +152,7 @@
   function enterParty() {
     $('#roam').hidden = true;
     W.mode = 'play'; W.menuHidden = true; $('#home').hidden = true; $('#hud').hidden = false; touchControls(true);
-    if (S.party.pub && !S.tipped.guns) { S.tipped.guns = 1; setTimeout(() => toast('Guns are on. Kill = +12,000 coins. Tap Hide & Seek for a round.'), 900); }
+    if (S.party.pub && !S.tipped.guns) { S.tipped.guns = 1; setTimeout(() => toast('Guns are on. Kill = +12,000 coins. Stand on the marble to heal.'), 900); }
   }
   function leaveParty() { S.party = null; S.phase = ''; S.round = null; closeLayer(); W.clearItems(); W.gunsOn = false; S.dead = false; $('#hud').classList.remove('in-round'); $('#hud').hidden = true; }
   function phaseChanged(prev, ph) {

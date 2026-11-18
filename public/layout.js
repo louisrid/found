@@ -386,11 +386,22 @@
 
   /* ---------------- the lobby ---------------- */
   function buildLobby() {
-    const colliders = [];
+    const colliders = [], R = 140;
     const spawns = []; for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; spawns.push({ x: +(Math.sin(a) * 8).toFixed(2), z: +(8 + Math.cos(a) * 6).toFixed(2), ry: Math.PI }); }
-    /* the golden safe zone around the spawn points: nobody can shoot or be shot inside it */
+    /* the golden safe zone around the spawn points: nobody can shoot or be shot inside it, and it heals you */
     const safe = { x: 0, z: 8, r: 15 };
-    return { kind: 'lobby', safe, colliders, spawns, bounds: { r: 58 } };
+    /* the arena is a huge lawn (radius 140). Rocks, stone walls and crate stacks are scattered over it as cover: they block movement and shots. Fixed seed, so every player sees the same arena. */
+    let s = 20261118; const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+    for (let tries = 0, n = 0; n < 150 && tries < 4000; tries++) {
+      const kind = ['rock', 'rock', 'wall', 'crates'][Math.floor(rnd() * 4)], a = rnd() * Math.PI * 2, d = 34 + Math.sqrt(rnd()) * (R - 44), x = Math.sin(a) * d, z = 8 + Math.cos(a) * d;
+      if (Math.hypot(x, z) > R - 8) continue;
+      const alongX = rnd() < 0.5, w = kind === 'wall' ? 7 + rnd() * 8 : kind === 'rock' ? 2.4 + rnd() * 2.6 : 2.2 + rnd() * 1.2, t = kind === 'wall' ? 1.1 : w * (0.8 + rnd() * 0.4), h = kind === 'wall' ? 2.6 : kind === 'rock' ? 2.4 + rnd() * 1.4 : 2.4;
+      const hx = (kind === 'wall' && !alongX ? t : w) / 2, hz = (kind === 'wall' && !alongX ? w : t) / 2;
+      const c = { x0: +(x - hx).toFixed(2), x1: +(x + hx).toFixed(2), z0: +(z - hz).toFixed(2), z1: +(z + hz).toFixed(2), h: +h.toFixed(2), kind, v: Math.floor(rnd() * 4) };
+      if (colliders.some(o => c.x0 - 5 < o.x1 && c.x1 + 5 > o.x0 && c.z0 - 5 < o.z1 && c.z1 + 5 > o.z0)) continue;
+      colliders.push(c); n++;
+    }
+    return { kind: 'lobby', safe, colliders, spawns, bounds: { r: R } };
   }
   /* push a circle (player) out of every box; returns the corrected position */
   const BK = 8;

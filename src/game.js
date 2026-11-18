@@ -217,6 +217,8 @@ export class Party {
   setGuns(on) { if (this.phase !== 'lobby') return; this.guns = !!on; this.pickups = []; this.revive(); this.io.all(this, { t: 'guns', on: this.guns }); this.sync(); }
   /* hitscan: each pellet goes out along the aim and hits the nearest player in its path (a generous width, because there is no crosshair) */
   inSafe(p) { const S = LAY.lobby.safe; return this.phase === 'lobby' && Math.hypot(p.x - S.x, p.z - S.z) < S.r; }
+  /* how far a shot gets before it hits cover (a rock, wall or crate stack), or max if nothing is in the way */
+  wallDist(x, z, sx, sz, max) { const M = LAY.lobby; for (let d = 0.5; d <= max; d += 0.5) { const px = x + sx * d, pz = z + sz * d; for (const c of LAY.near(M, px, pz)) if (px >= c.x0 && px <= c.x1 && pz >= c.z0 && pz <= c.z1) return d; } return max; }
   targetable(q, p, now) { return q !== p && !q.spec && !q.deadAt && !this.inSafe(q) && now >= q.shield && !(q.rolling && now - q.rollStart <= 450); }   // a roll dodges
   shoot(p, b) {
     if (!this.guns || this.phase !== 'lobby' || p.deadAt || p.spec || this.inSafe(p)) return;
@@ -226,14 +228,14 @@ export class Party {
     const rays = [], dmg = new Map(), mult = (now < p.rageUntil ? 2 : 1) * (ar.berserk && p.hp < this.mh(p) / 3 ? 1.4 : 1), wide = (g.assist || 0) + (g.lock || 0) * 0.15;
     let crit = false;
     for (let k = 0; k < g.pellets; k++) {
-      const a = ry + (g.pellets > 1 ? (k / (g.pellets - 1) - 0.5) * g.spread * 2 : 0) + (this.rnd() - 0.5) * (g.pellets > 1 ? g.spread * 0.4 : g.spread) + (this.rnd() - 0.5) * 2 * (g.jit || 0), sx = Math.sin(a), sz = Math.cos(a), cand = [];
+      const a = ry + (g.pellets > 1 ? (k / (g.pellets - 1) - 0.5) * g.spread * 2 : 0) + (this.rnd() - 0.5) * (g.pellets > 1 ? g.spread * 0.4 : g.spread) + (this.rnd() - 0.5) * 2 * (g.jit || 0), sx = Math.sin(a), sz = Math.cos(a), cand = [], lim = this.wallDist(p.x, p.z, sx, sz, g.range);
       for (const q of this.players.values()) {
         if (!this.targetable(q, p, now)) continue;
         const dx = q.x - p.x, dz = q.z - p.z, fwd = dx * sx + dz * sz, side = Math.abs(dx * sz - dz * sx);
-        if (fwd > 0.3 && fwd <= g.range && side <= 0.95 + wide + fwd * 0.02) cand.push([fwd, q]);
+        if (fwd > 0.3 && fwd <= lim && side <= 0.95 + wide + fwd * 0.02) cand.push([fwd, q]);
       }
       cand.sort((x, y) => x[0] - y[0]);
-      const take = cand.slice(0, g.ab === 'pierce' ? 3 : 1), bd = take.length ? take[take.length - 1][0] : g.range, c = g.ab === 'crit' && this.rnd() < 0.2; if (c) crit = true;
+      const take = cand.slice(0, g.ab === 'pierce' ? 3 : 1), bd = take.length ? take[take.length - 1][0] : lim, c = g.ab === 'crit' && this.rnd() < 0.2; if (c) crit = true;
       rays.push([r2(p.x + sx * bd), r2(p.z + sz * bd), take.length ? take[0][1].id : 0]);
       for (const [, q] of take) dmg.set(q, (dmg.get(q) || 0) + g.dmg * mult * (c ? 2 : 1));
     }
@@ -273,6 +275,9 @@ export class Party {
     for (const q of this.players.values()) {
       if (q.deadAt || q.spec) { q.burn = null; continue; }
       if (q.burn) { if (now >= q.burn.until || now < q.shield || this.inSafe(q)) q.burn = null; else if (now >= q.burn.next) { q.burn.next = now + 700; const by = this.players.get(q.burn.by); if (by) this.damage(q, q.burn.d, by, now, q.burn.g, { noReflect: true, sec: true }); else q.burn = null; } }
+      /* ways to heal: the marble safe zone mends you fast (about 20 hp a second), and anywhere else you slowly mend once you have been out of a fight for 6 seconds */
+      const full = this.mh(q);
+      if (q.hp < full && now >= (q.healAt || 0)) { if (this.inSafe(q)) { q.healAt = now + 500; this.heal(q, Math.max(5, Math.round(full * 0.07))); } else if (now - (q.hurtAt || 0) > 6000) { q.healAt = now + 1000; this.heal(q, 3); } }
       const ar = this.armor(q);
       if (ar.regen && !q.deadAt && q.hp < this.mh(q) && now - (q.hurtAt || 0) > 4000 && now >= (q.regenAt || 0)) { q.regenAt = now + 1000; this.heal(q, ar.regen); }
     }
