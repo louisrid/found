@@ -115,9 +115,9 @@ Nothing is sold for real money.
 
 ## Guns: the lobby is a free for all
 Spawn is a golden **safe zone** (no shooting in or out). Aim help is off for most guns (only the weakest keep a gentle, narrow one), and weaker guns wobble more at range. Everyone who opens the game lands in the **same public lobby**, an open lawn where **guns are always on**. There are no party codes or admin switches; a new lobby opens only when the current one is full (12 players), and **Practice** gives you a private room against bots. Hold **F**, the **FIRE** button or **right-click** to shoot; number keys **1-9** (or a tap) pick a gun from the **hotbar** at the bottom. 100 HP, 3 s respawn with a 2 s shield, **barrel roll** (double-tap A or D) dodges shots.
-- A kill pays **10,000 coins**; dying costs **3,000** (or whatever you have). Killing the same player again within 20 s pays nothing, so two friends cannot farm each other (`CFG.killCoins`, `deathCoins`, `repeatKillMs`).
-- Things spawn on the grass: **hearts** (+50 HP), **shields** (5 s), **coin bags** (+1,000) and **rage orbs** (double damage for 8 s), up to 9 at a time (`CFG.pickupMs`, `pickupMax`).
-- Income: every connected player earns **1,000 coins a minute**. The **Gun Crate** lives in the shop's Guns tab: 500 coins, rolls a rarity by its odds (Common to Cosmic), duplicates pay 10% of the shop price back. `node tests/curve.mjs` prints the power curve and how long each tier takes to earn.
+- A kill pays **12,000 coins**; dying costs **4,000** (or whatever you have). Killing the same player again within 20 s pays nothing, so two friends cannot farm each other (`CFG.killCoins`, `deathCoins`, `repeatKillMs`).
+- Floating pickups are switched off (`CFG.pickupMax` is 0); healing comes from the marble platform, regen and Med Grenades. The pickup code is still there if you want them back.
+- Income: every connected player earns **2,000 coins a minute**. The **Gun Crate** lives in the shop's Guns tab: 4,000 coins, rolls a rarity by its odds (Common to Cosmic), duplicates pay 10% of the shop price back. `node tests/curve.mjs` prints the power curve and how long each tier takes to earn.
 
 ## Barrel roll
 Tap **A** or **D** twice quickly (on a phone: flick the joystick left or right twice) to barrel roll that way: a fast dash with a full tumble, about 0.4 s, one per second. While rolling you dodge gun shots (the server allows one 0.45 s roll per 0.8 s). It works in the lobby and Explore, not during a round.
@@ -148,7 +148,7 @@ Tap **A** or **D** twice quickly (on a phone: flick the joystick left or right t
 ## Tests
 
 ```bash
-npm test                                   # 30 unit + 27 integration checks (real server, two WebSocket players)
+npm test                                   # 52 unit + 35 integration checks (real server, two WebSocket players)
 pip install playwright                     # once, for the browser test
 PORT=3000 npm start & python3 tests/browser.py http://localhost:3000
 ```
@@ -170,6 +170,10 @@ a real database yet.
 - Three boxes: Clothes Box (stock, daily and wheel), Gun Crate (4,000) and Armour Box (3,500).
 - Economy: 2,000 coins a minute just for being in the lobby, 12,000 a kill, 4,000 lost per death, coin bags 5,000, round rewards x8.
 - Aim help is weak and only on the weakest guns; once you are aimed right at someone every gun locks on, and better guns lock harder and wobble less.
+- **The arena** is a 140 m lawn with 150 pieces of cover (rocks, walls, crates) that block shots and grenades. The 15 m white marble platform in the middle is the safe zone: it heals 7% of your health every half second, and out in the open you mend 3 hp a second after 6 s without being hit.
+- **Weapon classes** (`CLASSES` in `public/guns.js`; each gun has one): pistols are twice as true standing still and worse when running (steady); SMGs, rifles and LMGs *spray* (the spread grows with every shot while you hold fire and only settles once you stop); shotguns throw a wide cone; snipers use a **scope** (hold FIRE to steady the aim and see the scope ring, release to fire; a quick tap is a wild hip shot).
+- **Damage falloff**: every gun deals more up close and less far away (`fall: [near, far]`; a shotgun does 1.4x at point blank and 0.2x at range, a sniper is 0.8x close and full damage far away).
+- **Gadgets** (`public/gadgets.js`, shop tab "Gadgets", press **G** or the round button beside FIRE): Frag, Flashbang (blinds and stops shooting for 2.5 s), Smoke (a cloud that blocks every shot for 7 s), Med Grenade (heals everyone near it), Napalm (burning ground), Cluster Bomb (three blasts), and the premium Mega Bomb (400,000) and Mini Nuke (1,800,000). Damage falls off with distance from the blast, never hurts the thrower, and each gadget has its own cooldown. You cannot throw from the safe zone. The server sends `nade` when one is thrown and `boom` when it goes off.
 
 ## Permanence and odds
 - Nothing a player owns is ever wiped or removed. The old season reset is gone (`SEASON` is only a marker). Items that ever leave the catalogue stay in the save and simply stop being worn. Never bump the one-time `MIGRATION` again.

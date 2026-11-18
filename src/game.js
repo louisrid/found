@@ -10,8 +10,9 @@ import '../public/objects.js';
 import '../public/layout.js';
 import '../public/guns.js';
 import '../public/armor.js';
+import '../public/gadgets.js';
 import { publicOf, addBox, owns } from './profiles.js';
-const OBJ = globalThis.FOUND_OBJECTS, LAY = globalThis.FOUND_LAYOUT, GUNS = globalThis.FOUND_GUNS, AR = globalThis.FOUND_ARMOR;
+const OBJ = globalThis.FOUND_OBJECTS, LAY = globalThis.FOUND_LAYOUT, GUNS = globalThis.FOUND_GUNS, AR = globalThis.FOUND_ARMOR, GAD = globalThis.FOUND_GADGETS;
 
 export const AB = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 export const CFG = { maxPlayers: 12, pickMs: 8000, soloHideMs: 3000, resultsMs: 9000, swapMs: 5000, readyMs: 3000,
@@ -43,7 +44,7 @@ export class Party {
   constructor(code, io, opts = {}) {
     this.code = code; this.io = io; this.now = opts.now || Date.now; this.rnd = opts.rnd || Math.random; this.cfg = Object.assign({}, CFG, opts.cfg || {}); this.over = opts.cfg || {};
     this.players = new Map(); this.host = null; this.phase = 'lobby'; this.round = null; this.n = 0; this.readyAt = 0;
-    this.pub = !!opts.pub; this.guns = true; this.pickups = []; this.pickAt = 0; this.pickN = 0; this.mode = 'solo'; this.matchRound = 0; this.matchRounds = 1; this.mapPick = 'auto'; this.mapId = 'cabin'; this.seed = 0; this.mc = this.mapCfg('cabin'); this.stake = 0; this.pot = null; this.rules = Object.assign({}, RULES0);
+    this.pub = !!opts.pub; this.guns = true; this.nades = []; this.zones = []; this.nadeN = 0; this.pickups = []; this.pickAt = 0; this.pickN = 0; this.mode = 'solo'; this.matchRound = 0; this.matchRounds = 1; this.mapPick = 'auto'; this.mapId = 'cabin'; this.seed = 0; this.mc = this.mapCfg('cabin'); this.stake = 0; this.pot = null; this.rules = Object.assign({}, RULES0);
   }
   mapCfg(id) { return Object.assign({}, MAPCFG[id], this.over); }
   map() { return LAY.map(this.mapId, this.seed); }
@@ -201,6 +202,7 @@ export class Party {
     const map = this.inHouse() ? this.map() : LAY.lobby; y = Math.max(0, Math.min(6, y));
     /* checked in short steps so a fast move cannot pass through a thin wall */
     { const n = Math.max(1, Math.ceil(Math.hypot(x - p.x, z - p.z) / 0.5)); let cx = p.x, cz = p.z; for (let i = 1; i <= n; i++) { const r = LAY.collide(map, p.x + (x - p.x) * i / n, p.z + (z - p.z) * i / n, 0.55, cx, cz, y); if (i < n && (Math.abs(r[0] - (p.x + (x - p.x) * i / n)) > 1e-6 || Math.abs(r[1] - (p.z + (z - p.z) * i / n)) > 1e-6)) { cx = r[0]; cz = r[1]; break; } cx = r[0]; cz = r[1]; } x = cx; z = cz; }
+    p.spd = 0.6 * (p.spd || 0) + 0.4 * Math.hypot(x - p.x, z - p.z) / dt;   // how fast you are moving, for the pistols' steady aim
     p.x = x; p.z = z; p.y = Math.max(0, Math.min(6, y)); p.ry = ry; p.at = now; /* barrel roll: the client says it is rolling; the server allows one roll (0.45 s, dodging shots) per 0.8 s */
     if ((b.f | 0) & 8) { if (!p.rolling && now - (p.rollStart || 0) >= 800) { p.rollStart = now; p.rolling = true; } if (p.rolling && now - p.rollStart > 450) p.rolling = false; } else p.rolling = false;
     p.f = ((b.f | 0) & 7) | (p.rolling ? 8 : 0); p.moved = true;
@@ -218,17 +220,28 @@ export class Party {
   /* hitscan: each pellet goes out along the aim and hits the nearest player in its path (a generous width, because there is no crosshair) */
   inSafe(p) { const S = LAY.lobby.safe; return this.phase === 'lobby' && Math.hypot(p.x - S.x, p.z - S.z) < S.r; }
   /* how far a shot gets before it hits cover (a rock, wall or crate stack), or max if nothing is in the way */
-  wallDist(x, z, sx, sz, max) { const M = LAY.lobby; for (let d = 0.5; d <= max; d += 0.5) { const px = x + sx * d, pz = z + sz * d; for (const c of LAY.near(M, px, pz)) if (px >= c.x0 && px <= c.x1 && pz >= c.z0 && pz <= c.z1) return d; } return max; }
+  wallDist(x, z, sx, sz, max) { const M = LAY.lobby; for (let d = 0.5; d <= max; d += 0.5) { const px = x + sx * d, pz = z + sz * d; for (const c of LAY.near(M, px, pz)) if (px >= c.x0 && px <= c.x1 && pz >= c.z0 && pz <= c.z1) return d; for (const k of this.zones) if (k.kind === 'smoke' && Math.hypot(px - k.x, pz - k.z) < k.r) return d; } return max; }
   targetable(q, p, now) { return q !== p && !q.spec && !q.deadAt && !this.inSafe(q) && now >= q.shield && !(q.rolling && now - q.rollStart <= 450); }   // a roll dodges
+  /* the player holds the trigger of a scoped gun: the shot steadies the longer they hold (the client sends aim on, then shoot on release) */
+  aim(p, b) { if (!p || p.deadAt) return; p.aimAt = b && b.on ? this.now() : 0; }
   shoot(p, b) {
     if (!this.guns || this.phase !== 'lobby' || p.deadAt || p.spec || this.inSafe(p)) return;
     const now = this.now(), id = owns(p.prof, p.prof.gun) && GUNS.BY[p.prof.gun] ? p.prof.gun : GUNS.START, g = GUNS.BY[id], ar = this.armor(p);
+    if (now < (p.stunUntil || 0)) return;   // flashbanged
     if (now - p.shotAt < g.ms * 0.85) return; p.shotAt = now;
     const ry = Number.isFinite(+b.ry) ? +b.ry : p.ry; p.ry = ry;
-    const rays = [], dmg = new Map(), mult = (now < p.rageUntil ? 2 : 1) * (ar.berserk && p.hp < this.mh(p) / 3 ? 1.4 : 1), wide = (g.assist || 0) + (g.lock || 0) * 0.15;
+    const rays = [], dmg = new Map(), mult = (now < p.rageUntil ? 2 : 1) * (ar.berserk && p.hp < this.mh(p) / 3 ? 1.4 : 1);
+    /* how this gun aims: pistols are truer standing still, sprayers bloom while you hold fire, shotguns throw a wide cone, snipers need the trigger held to steady */
+    let jit = g.jit || 0, bloom = 0, cone = 1, steady = 0;
+    if (g.aim === 'steady') jit *= (p.spd || 0) < 1.5 ? 0.45 : 1.3;
+    else if (g.aim === 'bloom') { bloom = Math.max(0, (p.bloom || 0) - g.bloomDecay * Math.max(0, now - (p.bloomAt || now) - g.ms * 1.6) / 1000); p.bloom = Math.min(g.bloomMax, bloom + g.bloomStep); p.bloomAt = now; }
+    else if (g.aim === 'cone') cone = g.wide;
+    else if (g.aim === 'scope') { steady = p.aimAt ? Math.max(0, Math.min(1, (now - p.aimAt) / g.scopeMs)) : 0; p.aimAt = 0; bloom = g.hip * (1 - steady); jit *= 1 - steady; }
+    const wide = (g.assist || 0) + (g.lock || 0) * 0.15 + (steady >= 1 ? 0.2 : 0);
     let crit = false;
     for (let k = 0; k < g.pellets; k++) {
-      const a = ry + (g.pellets > 1 ? (k / (g.pellets - 1) - 0.5) * g.spread * 2 : 0) + (this.rnd() - 0.5) * (g.pellets > 1 ? g.spread * 0.4 : g.spread) + (this.rnd() - 0.5) * 2 * (g.jit || 0), sx = Math.sin(a), sz = Math.cos(a), cand = [], lim = this.wallDist(p.x, p.z, sx, sz, g.range);
+      const fan = g.pellets > 1 ? (g.aim === 'cone' ? (this.rnd() - 0.5) * 2 * g.spread * cone : (k / (g.pellets - 1) - 0.5) * g.spread * 2 + (this.rnd() - 0.5) * g.spread * 0.4) : (this.rnd() - 0.5) * g.spread;
+      const a = ry + fan + (this.rnd() - 0.5) * 2 * jit + (this.rnd() - 0.5) * 2 * bloom, sx = Math.sin(a), sz = Math.cos(a), cand = [], lim = this.wallDist(p.x, p.z, sx, sz, g.range);
       for (const q of this.players.values()) {
         if (!this.targetable(q, p, now)) continue;
         const dx = q.x - p.x, dz = q.z - p.z, fwd = dx * sx + dz * sz, side = Math.abs(dx * sz - dz * sx);
@@ -237,7 +250,7 @@ export class Party {
       cand.sort((x, y) => x[0] - y[0]);
       const take = cand.slice(0, g.ab === 'pierce' ? 3 : 1), bd = take.length ? take[take.length - 1][0] : lim, c = g.ab === 'crit' && this.rnd() < 0.2; if (c) crit = true;
       rays.push([r2(p.x + sx * bd), r2(p.z + sz * bd), take.length ? take[0][1].id : 0]);
-      for (const [, q] of take) dmg.set(q, (dmg.get(q) || 0) + g.dmg * mult * (c ? 2 : 1));
+      for (const [fwd, q] of take) dmg.set(q, (dmg.get(q) || 0) + GUNS.hurt(g, fwd) * mult * (c ? 2 : 1));
     }
     this.io.all(this, { t: 'shot', id: p.id, g: id, ry: r2(ry), e: rays });
     for (const [q, d] of dmg) {
@@ -269,9 +282,35 @@ export class Party {
     p.prof.coins += pay; q.prof.coins -= lost; this.io.me(p); this.io.me(q); if (this.io.touch) { this.io.touch(p); this.io.touch(q); }
     this.io.all(this, { t: 'kill', by: p.id, id: q.id, g: gid, coins: pay, lost }); this.sync();
   }
-  /* burning and armour regeneration */
+  /* gadgets: a grenade flies to where you aimed (or to the first cover in the way) and goes off after its fuse */
+  throwNade(p, b) {
+    if (!p || !this.guns || this.phase !== 'lobby' || p.deadAt || p.spec || this.inSafe(p)) return;
+    const now = this.now(), id = owns(p.prof, p.prof.gadget) && GAD.BY[p.prof.gadget] ? p.prof.gadget : GAD.START, g = GAD.BY[id];
+    if (now < (p.gadgetAt || 0)) return; p.gadgetAt = now + g.cd;
+    const ry = Number.isFinite(+b.ry) ? +b.ry : p.ry, sx = Math.sin(ry), sz = Math.cos(ry), d = Math.max(1.5, this.wallDist(p.x, p.z, sx, sz, g.range) - 0.8);
+    const n = { id: ++this.nadeN, by: p.id, g: id, x: r2(p.x + sx * d), z: r2(p.z + sz * d), boom: now + g.fuse };
+    this.nades.push(n); this.io.all(this, { t: 'nade', id: n.id, by: p.id, g: id, x0: r2(p.x), z0: r2(p.z), x: n.x, z: n.z, ms: g.fuse });
+  }
+  blast(owner, x, z, r, dmg, now, gid) {
+    for (const q of this.players.values()) { if (q === owner || q.spec || q.deadAt || this.inSafe(q) || now < q.shield) continue; const dd = Math.hypot(q.x - x, q.z - z); if (dd < r) this.damage(q, GAD.hurt({ dmg, r }, dd), owner, now, gid, { sec: true, noReflect: true }); }
+  }
+  explode(n, now) {
+    const g = GAD.BY[n.g], owner = this.players.get(n.by); if (!g) return;
+    if (g.kind !== 'cluster') this.io.all(this, { t: 'boom', id: n.id, g: n.g, k: g.kind, x: n.x, z: n.z, r: g.r, ms: g.dur || 0 });
+    if (!owner) return;
+    if (g.kind === 'frag') this.blast(owner, n.x, n.z, g.r, g.dmg, now, n.g);
+    else if (g.kind === 'cluster') for (let i = 0; i < 3; i++) { const a = i * 2.094 + 0.5, ox = n.x + Math.sin(a) * 3, oz = n.z + Math.cos(a) * 3; this.io.all(this, { t: 'boom', id: n.id * 10 + i, g: n.g, k: 'frag', x: r2(ox), z: r2(oz), r: g.r, ms: 0 }); this.blast(owner, ox, oz, g.r, g.dmg, now, n.g); }
+    else if (g.kind === 'flash') { for (const q of this.players.values()) { if (q === owner || q.spec || q.deadAt || this.inSafe(q)) continue; if (Math.hypot(q.x - n.x, q.z - n.z) < g.r) { q.stunUntil = now + g.stun; this.io.one(q, { t: 'blind', ms: g.stun }); } } }
+    else if (g.kind === 'med') { for (const q of this.players.values()) if (!q.spec && !q.deadAt && Math.hypot(q.x - n.x, q.z - n.z) < g.r) this.heal(q, g.heal); }
+    else if (g.kind === 'smoke') this.zones.push({ kind: 'smoke', x: n.x, z: n.z, r: g.r, until: now + g.dur });
+    else if (g.kind === 'fire') this.zones.push({ kind: 'fire', x: n.x, z: n.z, r: g.r, until: now + g.dur, by: n.by, next: now + 400, dmg: g.dmg, g: n.g });
+  }
+  /* burning, gadgets in flight and on the ground, and armour regeneration */
   gearTick(now) {
-    if (!this.guns || this.phase !== 'lobby') return;
+    if (!this.guns || this.phase !== 'lobby') { if (this.nades.length || this.zones.length) { this.nades = []; this.zones = []; } return; }
+    for (let i = this.nades.length - 1; i >= 0; i--) if (now >= this.nades[i].boom) this.explode(this.nades.splice(i, 1)[0], now);
+    for (let i = this.zones.length - 1; i >= 0; i--) { const z = this.zones[i]; if (now >= z.until) { this.zones.splice(i, 1); continue; }
+      if (z.kind === 'fire' && now >= z.next) { z.next = now + 700; const by = this.players.get(z.by); if (by) for (const q of this.players.values()) if (q !== by && !q.spec && !q.deadAt && !this.inSafe(q) && now >= q.shield && Math.hypot(q.x - z.x, q.z - z.z) < z.r) this.damage(q, z.dmg, by, now, z.g, { sec: true, noReflect: true }); } }
     for (const q of this.players.values()) {
       if (q.deadAt || q.spec) { q.burn = null; continue; }
       if (q.burn) { if (now >= q.burn.until || now < q.shield || this.inSafe(q)) q.burn = null; else if (now >= q.burn.next) { q.burn.next = now + 700; const by = this.players.get(q.burn.by); if (by) this.damage(q, q.burn.d, by, now, q.burn.g, { noReflect: true, sec: true }); else q.burn = null; } }

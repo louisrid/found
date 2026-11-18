@@ -71,9 +71,12 @@
     <div class="lobby-bar" id="lobby-bar"></div>
     <div class="hotbar" id="hotbar" hidden aria-label="Your guns"></div>
   </div>
+  <button class="btn nade" id="nade" hidden aria-label="Throw gadget (G)"><img id="nade-i" alt=""><small>G</small></button>
   <button class="btn fire" id="fire" hidden aria-label="Fire (hold)"><img id="fire-i" alt=""><span>FIRE</span><small id="fire-g">F</small></button>
   <div class="rip" id="rip" hidden><h2>You're out</h2><p>Back in <b id="rip-n">3</b></p></div>
   <div class="hurt" id="hurt"></div>
+  <div class="flash" id="flash"></div>
+  <div class="scope" id="scope" hidden></div>
 </section>
 <div class="blind" id="blind" hidden><h2>Hiders are hiding</h2><b id="blind-n"></b><p>You seek when the timer ends.</p></div>
 
@@ -89,6 +92,7 @@
 <script src="layout.js?v=__V__"></script>
 <script src="guns.js?v=__V__"></script>
 <script src="armor.js?v=__V__"></script>
+<script src="gadgets.js?v=__V__"></script>
 <script src="avatar-data.js?v=__V__"></script>
 <script src="extra-items.js?v=__V__"></script>
 <script src="auras.js?v=__V__"></script>

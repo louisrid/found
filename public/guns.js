@@ -20,17 +20,17 @@
   /* common: plain, honest guns */
   gun('g_pistol', 'Service Pistol', 'common', [15, 300, 42, 1, 0.03, '#d8d8e0'], { L: 0.42, B: 0.12, body: '#4a4f5c', trim: '#c8ccd6' });
   gun('g_revolver', 'Six Shooter', 'common', [28, 560, 48, 1, 0.025, '#e8c39a'], { L: 0.36, B: 0.26, th: 0.2, body: '#7a5a3a', trim: '#c9a46a', barrel: '#3a3a44' }, [[0.2, 0.2, 0.16, '#3a3a44', 0, 0.04, 0.2]]);
-  gun('g_smg', 'Mini SMG', 'common', [7, 110, 36, 1, 0.06, '#ffe14a'], { L: 0.5, B: 0.14, body: '#2f3340', trim: '#ffc61a' }, [[0.1, 0.3, 0.1, '#1d1d24', 0, -0.2, 0.26]]);
+  gun('g_smg', 'Mini SMG', 'common', [7, 110, 36, 1, 0.08, '#ffe14a'], { L: 0.5, B: 0.14, body: '#2f3340', trim: '#ffc61a' }, [[0.1, 0.3, 0.1, '#1d1d24', 0, -0.2, 0.26]]);
   /* uncommon */
   gun('g_carbine', 'Carbine', 'uncommon', [10, 160, 50, 1, 0.03, '#7ad8ff'], { L: 0.7, B: 0.2, body: '#2f4a6a', trim: '#7ad8ff' }, [[0.12, 0.12, 0.2, '#1d1d24', 0, 0.0, -0.12]]);
   gun('g_pump', 'Pump Shotgun', 'uncommon', [9, 800, 28, 6, 0.2, '#ff9f1c'], { L: 0.7, B: 0.3, th: 0.2, bw: 0.14, body: '#5a3b24', trim: '#ff9f1c', barrel: '#2a2733' }, [[0.22, 0.16, 0.2, '#8a5a34', 0, -0.03, 0.4]]);
   gun('g_heavy', 'Heavy Pistol', 'uncommon', [34, 520, 50, 1, 0.02, '#c9b6ff'], { L: 0.5, B: 0.2, th: 0.22, body: '#3a3050', trim: '#c9b6ff' });
   /* rare */
   gun('g_rifle', 'Assault Rifle', 'rare', [11, 140, 56, 1, 0.025, '#6fe35a'], { L: 0.85, B: 0.25, body: '#35502f', trim: '#6fe35a' }, [[0.1, 0.3, 0.12, '#1d1d24', 0, -0.2, 0.34], [0.14, 0.14, 0.2, '#1d1d24', 0, 0.0, -0.14]]);
-  gun('g_tac', 'Tactical SMG', 'rare', [7, 85, 40, 1, 0.05, '#ff4b3e'], { L: 0.55, B: 0.2, body: '#1d1d24', trim: '#ff4b3e' }, [[0.1, 0.34, 0.1, '#2a2733', 0, -0.22, 0.28], [0.07, 0.07, 0.2, '#ff4b3e', 0, 0.2, 0.3]]);
+  gun('g_tac', 'Tactical SMG', 'rare', [7, 85, 40, 1, 0.07, '#ff4b3e'], { L: 0.55, B: 0.2, body: '#1d1d24', trim: '#ff4b3e' }, [[0.1, 0.34, 0.1, '#2a2733', 0, -0.22, 0.28], [0.07, 0.07, 0.2, '#ff4b3e', 0, 0.2, 0.3]]);
   gun('g_marks', 'Marksman Rifle', 'rare', [38, 480, 70, 1, 0.01, '#b8e0ff'], { L: 0.95, B: 0.3, th: 0.16, body: '#3a4658', trim: '#b8e0ff' }, [[0.08, 0.08, 0.32, '#0b0b0f', 0, 0.2, 0.46], [0.1, 0.1, 0.1, '#7ad8ff', 0, 0.2, 0.62, 'g']]);
   /* epic */
-  gun('g_lmg', 'Light Machine Gun', 'epic', [10, 100, 56, 1, 0.05, '#ffc61a'], { L: 0.95, B: 0.3, th: 0.24, body: '#3b3b2a', trim: '#ffc61a' }, [[0.28, 0.24, 0.26, '#1d1d24', 0, -0.12, 0.3], [0.04, 0.2, 0.04, '#ffc61a', 0.1, -0.04, 0.8], [0.04, 0.2, 0.04, '#ffc61a', -0.1, -0.04, 0.8]]);
+  gun('g_lmg', 'Light Machine Gun', 'epic', [10, 100, 56, 1, 0.07, '#ffc61a'], { L: 0.95, B: 0.3, th: 0.24, body: '#3b3b2a', trim: '#ffc61a' }, [[0.28, 0.24, 0.26, '#1d1d24', 0, -0.12, 0.3], [0.04, 0.2, 0.04, '#ffc61a', 0.1, -0.04, 0.8], [0.04, 0.2, 0.04, '#ffc61a', -0.1, -0.04, 0.8]]);
   gun('g_dbl', 'Double Barrel', 'epic', [13, 900, 30, 8, 0.22, '#ff7a1a'], { L: 0.7, B: 0.34, th: 0.24, bw: 0.1, body: '#6a3b1a', trim: '#ffc61a', barrel: '#1d1d24' }, [[0.1, 0.1, 0.34, '#1d1d24', 0.07, 0.05, 0.78], [0.1, 0.1, 0.34, '#1d1d24', -0.07, 0.05, 0.78]]);
   gun('g_sniper', 'Sniper Rifle', 'epic', [62, 1100, 90, 1, 0.004, '#9bff6a'], { L: 1.2, B: 0.4, th: 0.15, body: '#2a3b2a', trim: '#9bff6a' }, [[0.1, 0.1, 0.4, '#0b0b0f', 0, 0.2, 0.55], [0.12, 0.12, 0.12, '#9bff6a', 0, 0.2, 0.78, 'g']]);
   gun('g_leech', 'Leech SMG', 'epic', [8, 90, 40, 1, 0.045, '#ff2d55'], { L: 0.6, B: 0.18, body: '#3a0b16', trim: '#ff2d55' }, [[0.16, 0.16, 0.12, '#ff2d55', 0, 0.06, 0.22, 'g'], [0.08, 0.3, 0.08, '#1d1d24', 0, -0.22, 0.3]], 'vamp');
@@ -56,8 +56,23 @@
   const AIM = { starter: { assist: 0.16, pull: 0.30, lock: 0.35, jit: 0.080 }, common: { assist: 0.12, pull: 0.25, lock: 0.40, jit: 0.090 }, uncommon: { assist: 0.08, pull: 0.20, lock: 0.50, jit: 0.055 },
     rare: { assist: 0, pull: 0, lock: 0.60, jit: 0.033 }, epic: { assist: 0, pull: 0, lock: 0.70, jit: 0.020 }, legendary: { assist: 0, pull: 0, lock: 0.78, jit: 0.011 }, mythic: { assist: 0, pull: 0, lock: 0.85, jit: 0.006 },
     celestial: { assist: 0, pull: 0, lock: 0.90, jit: 0.003 }, cosmic: { assist: 0, pull: 0, lock: 0.95, jit: 0 } };
+  /* weapon classes: each aims differently, and every class does more damage up close.
+     fall [near, far]: damage multiplier at point blank and at maximum range. steady: pistols are twice as true when you stand still and worse when you run. bloom: the spread grows with every shot while you hold fire (step), up to max, and only settles (decay a second) once you stop firing.
+     cone: shotguns throw their pellets over a cone 1.5 times as wide. scope: snipers are shaky until you hold the trigger for ms to steady the shot, then fire on release. */
+  const CLASSES = {
+    pistol: { name: 'Steady aim', text: 'Twice as true when you stand still', fall: [1.35, 0.65], aim: 'steady' },
+    smg: { name: 'Spray', text: 'Spread grows while you hold fire', fall: [1.4, 0.5], aim: 'bloom', step: 0.014, max: 0.13, decay: 0.3 },
+    rifle: { name: 'Recoil', text: 'First shots are true, long bursts climb', fall: [1.25, 0.8], aim: 'bloom', step: 0.006, max: 0.05, decay: 0.08 },
+    lmg: { name: 'Heavy spray', text: 'Wide spread builds fast', fall: [1.3, 0.6], aim: 'bloom', step: 0.010, max: 0.16, decay: 0.25 },
+    shotgun: { name: 'Wide cone', text: 'Huge damage up close, little far away', fall: [1.4, 0.2], aim: 'cone', wide: 1.5 },
+    scope: { name: 'Scope', text: 'Hold to steady, release to fire', fall: [0.8, 1.0], aim: 'scope', scope: 700, hip: 0.07 } };
+  const OF = { pistol: ['g_pop', 'g_pistol', 'g_revolver', 'g_heavy', 'g_warden', 'g_gilded'], smg: ['g_smg', 'g_tac', 'g_leech', 'g_hyper', 'g_arc'], rifle: ['g_carbine', 'g_rifle', 'g_auto', 'g_inferno', 'g_nova'], lmg: ['g_lmg', 'g_havoc'],
+    shotgun: ['g_pump', 'g_dbl', 'g_combat', 'g_oblit'], scope: ['g_marks', 'g_sniper', 'g_rail', 'g_judge'] };
+  for (const k in OF) for (const id of OF[k]) { const d = defs.find(x => x.id === id); Object.assign(d, { cls: k, fall: CLASSES[k].fall, aim: CLASSES[k].aim, aimName: CLASSES[k].name, aimText: CLASSES[k].text, bloomStep: CLASSES[k].step || 0, bloomMax: CLASSES[k].max || 0, bloomDecay: CLASSES[k].decay || 0, wide: CLASSES[k].wide || 1, scopeMs: CLASSES[k].scope || 0, hip: CLASSES[k].hip || 0 }); }
+  /* damage at a distance */
+  const hurt = (d, dist) => d.dmg * (d.fall[0] + (d.fall[1] - d.fall[0]) * Math.max(0, Math.min(1, dist / d.range)));
   defs.forEach(d => { Object.assign(d, AIM[d.rarity] || AIM.common); d.abName = d.ab ? AB[d.ab][0] : ''; d.abText = d.ab ? AB[d.ab][1] : ''; });
   const BY = {}; defs.forEach(d => { BY[d.id] = d; });
   /* default health; armour adds to it (see armor.js) */
-  root.FOUND_GUNS = Object.freeze({ LIST: defs, BY, AB, HP: 150, START: 'g_pop' });
+  root.FOUND_GUNS = Object.freeze({ LIST: defs, BY, AB, CLASSES, hurt, HP: 150, START: 'g_pop' });
 })(globalThis);

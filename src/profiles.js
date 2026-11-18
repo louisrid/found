@@ -5,9 +5,10 @@ import '../public/catalog.js';
 import '../public/avatar-data.js';
 import '../public/guns.js';
 import '../public/armor.js';
+import '../public/gadgets.js';
 import '../public/extra-items.js';
 import '../public/auras.js';
-const C = globalThis.FOUND_CATALOG, D = globalThis.FOUND_AVATAR_DATA, G = globalThis.FOUND_GUNS;
+const C = globalThis.FOUND_CATALOG, D = globalThis.FOUND_AVATAR_DATA, G = globalThis.FOUND_GUNS, GD = globalThis.FOUND_GADGETS;
 
 export const hashKey = k => crypto.createHash('sha256').update('found:' + String(k)).digest('hex');
 export const today = now => new Date(now).toISOString().slice(0, 10);
@@ -23,7 +24,7 @@ export function cleanName(n) { return String(n || '').replace(/[^\p{L}\p{N} _.\-
 const pick = (a, r) => a[Math.floor(r() * a.length)];
 /* older saves kept three kinds of box; they are all one kind now */
 /* nothing a player owns is ever wiped or taken away. If an item ever leaves the catalogue the player keeps it in their save and it just stops being worn. */
-const gone = (p) => { if (p.gun && !C.BY[p.gun]) p.gun = ''; if (p.look && p.look.armor && !C.BY[p.look.armor]) p.look.armor = ''; };
+const gone = (p) => { if (p.gun && !C.BY[p.gun]) p.gun = ''; if (p.gadget && !C.BY[p.gadget]) p.gadget = ''; if (p.look && p.look.armor && !C.BY[p.look.armor]) p.look.armor = ''; };
 export const SEASON = 2;   // only a marker now: it used to wipe saves when bumped, and it never will again
 const fix = p => { gone(p); p.season = SEASON; if (typeof p.boxes !== 'number') p.boxes = Object.values(p.boxes || {}).reduce((a, b) => a + (b | 0), 0); if (!p.daily) p.daily = { last: '' }; if (!p.own) p.own = []; if (!p.stats) p.stats = {}; if (!p.idleAt) p.idleAt = Date.now(); return p; };
 
@@ -42,8 +43,8 @@ export function migrate(p, used, rnd = Math.random) {
 }
 export const usedNames = profiles => new Set([...profiles.values()].map(p => p.name));
 export const owns = (p, id) => !id || C.STARTER.includes(id) || (p.own || []).includes(id);
-export function publicOf(p) { return { id: p.id, name: p.name, look: p.look, pet: p.pet, col: p.col, gun: p.gun || G.START }; }
-export function privateOf(p, now) { fix(p); return { id: p.id, name: p.name, look: p.look, pet: p.pet, col: p.col, gun: p.gun || G.START, admin: !!p.admin, coins: p.coins, own: p.own, boxes: p.boxes, stats: p.stats, daily: p.daily.last !== today(now),
+export function publicOf(p) { return { id: p.id, name: p.name, look: p.look, pet: p.pet, col: p.col, gun: p.gun || G.START, gadget: p.gadget || GD.START }; }
+export function privateOf(p, now) { fix(p); return { id: p.id, name: p.name, look: p.look, pet: p.pet, col: p.col, gun: p.gun || G.START, gadget: p.gadget || GD.START, admin: !!p.admin, coins: p.coins, own: p.own, boxes: p.boxes, stats: p.stats, daily: p.daily.last !== today(now),
   idle: idleOf(p, now), idleRate: idleRate(p), spin: p.daily.spin !== today(now), miniLeft: miniLeft(p, now) }; }
 
 /* change looks: only owned items, real hairstyles and colours */
@@ -58,6 +59,7 @@ export function equip(p, b) {
   }
   if (typeof b.pet === 'string' && (b.pet === '' || (C.BY[b.pet] && C.BY[b.pet].slot === 'pet' && owns(p, b.pet)))) p.pet = b.pet;
   if (typeof b.gun === 'string' && C.BY[b.gun] && C.BY[b.gun].slot === 'gun' && owns(p, b.gun)) p.gun = b.gun;
+  if (typeof b.gadget === 'string' && C.BY[b.gadget] && C.BY[b.gadget].slot === 'gadget' && owns(p, b.gadget)) p.gadget = b.gadget;
   if (Number.isInteger(b.col) && b.col >= 0 && b.col < 8) p.col = b.col;
   if (typeof b.name === 'string') { const n = cleanName(b.name); if (n.length >= 2) p.name = n; }
   p.look = out; return p;
@@ -75,7 +77,7 @@ export function openBox(p, rnd = Math.random) {
   fix(p); if (!p.boxes) throw new Error('No Mystery Box to open.');
   p.boxes--; const order = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'celestial', 'cosmic'];
   let r = rnd() * 100, at = 0; for (let i = 0; i < order.length; i++) { at = i; const o = C.BOX.odds[order[i]]; if (r < o) break; r -= o; }
-  const pool = k => C.ITEMS.filter(i => i[3] === order[k] && i[1] !== 'gun' && i[1] !== 'armor' && !owns(p, i[0]));
+  const pool = k => C.ITEMS.filter(i => i[3] === order[k] && i[1] !== 'gun' && i[1] !== 'armor' && i[1] !== 'gadget' && !owns(p, i[0]));
   let list = []; for (let d = 0; d < order.length && !list.length; d++) for (const k of [at - d, at + d]) if (k >= 0 && k < order.length && !list.length) list = pool(k);
   if (!list.length) { p.coins += C.BOX.price; return { coins: C.BOX.price }; }   // you own everything: your coins back
   const it = list[Math.floor(rnd() * list.length)]; p.own.push(it[0]);

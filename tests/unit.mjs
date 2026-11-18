@@ -70,15 +70,15 @@ test('guns: aim help is weak and only on weak guns; better guns lock harder and 
   const by = (r, f, k) => Math[k](...L.filter(g => g.rarity === r).map(f)), order = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'celestial', 'cosmic'];
   for (let i = 1; i < order.length; i++) { assert.ok(by(order[i], g => g.jit, 'max') < by(order[i - 1], g => g.jit, 'min'), 'better guns are truer: ' + order[i]); assert.ok(by(order[i], g => g.lock, 'min') > by(order[i - 1], g => g.lock, 'max'), 'better guns lock harder: ' + order[i]); } assert.equal(by('cosmic', g => g.jit, 'max'), 0);
   /* the wobble is real: the same gun at range hits sometimes and misses sometimes */
-  const { pa, ps, adv } = party(2, seeded(11)), [a, b] = ps; a.prof.own.push('g_pistol'); a.prof.gun = 'g_pistol'; let hits = 0; for (let i = 0; i < 60; i++) { a.x = 20; a.z = 0; b.x = 20; b.z = 30; b.hp = 150; b.deadAt = 0; b.shield = 0; adv(300); pa.shoot(a, { ry: 0 }); if (b.hp < 150) hits++; }
-  assert.ok(hits > 8 && hits < 56, 'a common gun at 30 m is unreliable but not hopeless: ' + hits + ' of 60');
+  const { pa, ps, adv } = party(2, seeded(11)), [a, b] = ps; a.prof.own.push('g_pistol'); a.prof.gun = 'g_pistol'; const run = spd => { let h = 0; for (let i = 0; i < 80; i++) { a.x = 20; a.z = 0; a.spd = spd; b.x = 20; b.z = 30; b.hp = 150; b.deadAt = 0; b.shield = 0; adv(300); pa.shoot(a, { ry: 0 }); if (b.hp < 150) h++; } return h; }, hits = run(6), still = run(0);
+  assert.ok(hits > 8 && hits < 72, 'a common gun at 30 m while running is unreliable but not hopeless: ' + hits + ' of 80'); assert.ok(still > hits, 'a pistol is truer standing still: ' + still + ' vs ' + hits);
 });
 test('the shop sells an item once at its price', () => {
   const p = prof('b'); p.coins = 10000; const r = P.buyItem(p, C.ITEMS.find(i => i[3] === 'rare')[0]); assert.equal(p.coins, 10000 - r.price); assert.ok(P.owns(p, r.item));
   assert.throws(() => P.buyItem(p, r.item), /already/); p.coins = 0; assert.throws(() => P.buyItem(p, C.ITEMS.find(i => i[3] === 'mythic')[0]), /Not enough/); assert.throws(() => P.buyItem(p, 'nope'), /No such/);
 });
 test('boxes never repeat an item, and pay coins back only when you own everything', () => {
-  const cos = C.ITEMS.filter(i => i[1] !== 'gun' && i[1] !== 'armor'), p = prof('c'), rr = seeded(9), seen = new Set(); p.boxes = cos.length + 5; let back = 0;
+  const cos = C.ITEMS.filter(i => i[1] !== 'gun' && i[1] !== 'armor' && i[1] !== 'gadget'), p = prof('c'), rr = seeded(9), seen = new Set(); p.boxes = cos.length + 5; let back = 0;
   for (let i = 0; i < cos.length + 5; i++) { const r = P.openBox(p, rr); if (r.item) { assert.ok(!seen.has(r.item)); seen.add(r.item); } else back += r.coins; }
   assert.equal(seen.size, cos.length - cos.filter(i => i[3] === 'starter').length); assert.ok(back > 0); assert.throws(() => P.openBox(p), /No Mystery Box/);
 });
@@ -256,7 +256,7 @@ test('the power curve: each rarity hits harder and kills faster, and takes longe
   for (let i = 1; i < T.length; i++) { const a = T[i - 1], b = T[i];
     assert.ok(b.avg > a.avg, `${b.rarity} beats ${a.rarity} on average`); assert.ok(b.max > a.max, `${b.rarity} tops ${a.rarity}`);
     assert.ok(b.avg / a.avg >= 1.04 && b.avg / a.avg <= 2, `${a.rarity} to ${b.rarity} is a ${(b.avg / a.avg).toFixed(2)}x step`); }
-  assert.ok(T[0].ttkMin >= 2 && G0.LIST.every(g => g.dmg * g.pellets < G0.HP * 0.7 && (g.pellets > 1 || g.dmg * 2 < G0.HP)), 'a starter pistol needs 2 s+, and no gun one-shots you (single shots not even with a rage orb)');
+  assert.ok(T[0].ttkMin >= 2 && G0.LIST.every(g => g.dmg * g.pellets * g.fall[0] < G0.HP && (g.pellets > 1 || g.dmg * g.fall[0] * 2 < G0.HP)), 'a starter pistol needs 2 s+, and no gun one-shots you (single shots not even with a rage orb)');
   assert.ok(T.at(-1).avg / T[0].avg >= 2.5 && T.at(-1).avg / T[0].avg <= 8, 'cosmic is a few times a starter');
   /* earning them */
   const med = Object.fromEntries(R.pace.map(x => [x.rarity, x.median])); let prev = 0; for (const x of R.pace.filter(x => C.RARITY.indexOf(x.rarity) >= C.RARITY.indexOf('rare'))) { assert.ok(x.median >= prev - 3, x.rarity + ' not sooner than the tier below'); prev = Math.max(prev, x.median); }
@@ -278,15 +278,15 @@ test('guns: shooting, health, kills, respawn, and only when switched on in the l
   assert.ok(pa.state().guns, 'a party is a free for all from the start'); pa.setGuns(false); assert.ok(!pa.state().guns);
   place(); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 150); assert.ok(!sent.some(m => m[1].t === 'shot'), 'guns are off');
   pa.setGuns(true); assert.ok(pa.state().guns); assert.equal(pa.state().players[1].hp, 150);
-  place(); a.prof.gun = 'g_pop'; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 138); assert.equal(c.hp, 150); const sh = sent.filter(m => m[1].t === 'shot').pop()[1]; assert.equal(sh.id, a.id); assert.equal(sh.e[0][2], b.id);
-  pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 138, 'too soon: the gun is still cooling'); adv(400);
-  pa.shoot(a, { ry: Math.PI }); assert.equal(b.hp, 138, 'shooting the other way misses'); adv(400); pa.shoot(a, { ry: Math.PI / 2 }); assert.equal(c.hp, 138, 'c is 30 away along +x, inside the pistol range of 42'); c.hp = 150; c.x = 80; adv(400); pa.shoot(a, { ry: Math.PI / 2 }); assert.equal(c.hp, 150, 'out of range'); c.x = 50;
+  place(); a.prof.gun = 'g_pop'; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 136); assert.equal(c.hp, 150); const sh = sent.filter(m => m[1].t === 'shot').pop()[1]; assert.equal(sh.id, a.id); assert.equal(sh.e[0][2], b.id);
+  pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 136, 'too soon: the gun is still cooling'); adv(400);
+  pa.shoot(a, { ry: Math.PI }); assert.equal(b.hp, 136, 'shooting the other way misses'); adv(400); pa.shoot(a, { ry: Math.PI / 2 }); assert.equal(c.hp, 140, 'c is 30 away along +x, inside the pistol range of 42'); c.hp = 150; c.x = 80; adv(400); pa.shoot(a, { ry: Math.PI / 2 }); assert.equal(c.hp, 150, 'out of range'); c.x = 50;
   /* the kill pays, the dead cannot move or shoot, then they come back with a shield */
   const coins = a.prof.coins; let n = 0; while (!b.deadAt && n++ < 20) { adv(400); pa.shoot(a, { ry: 0 }); } assert.ok(b.deadAt && b.hp === 0); assert.equal(CFG.killCoins, 12000); assert.equal(a.prof.coins, coins + 12000, 'a kill pays 12,000'); assert.equal(b.prof.coins, 0, 'the victim lost what they had, up to 4,000 (they had 300)'); assert.ok(sent.some(m => m[1].t === 'kill' && m[1].id === b.id));
   const bx = b.x; pa.move(b, { x: 5, z: 5, y: 0, ry: 0 }); assert.equal(b.x, bx); adv(400); pa.shoot(b, { ry: 0 }); assert.ok(a.hp === 150);
   adv(CFG.respawnMs + 50); assert.ok(!b.deadAt && b.hp === 150 && b.shield > 0); assert.ok(sent.some(m => m[1].t === 'spawned' && m[1].id === b.id));
   place(); b.shield = 0; a.prof.gun = 'g_pump'; a.prof.own.push('g_pump'); adv(400); pa.shoot(a, { ry: 0 }); { const g = G0.BY.g_pump; assert.ok(b.hp < 150 && b.hp >= 150 - g.dmg * g.pellets, 'a spread gun lands some or all pellets: ' + b.hp); }
-  a.prof.gun = 'g_rail'; adv(1500); place(); b.hp = 150; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 138, 'a gun you do not own fires as the starter pistol (12)');
+  a.prof.gun = 'g_rail'; adv(1500); place(); b.hp = 150; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 136, 'a gun you do not own fires as the starter pistol (12)');
   pa.setGuns(false); assert.ok(!pa.state().guns);
 });
 test('pickups are off by default: nothing spawns on the grass', () => { const { pa, adv } = party(3); pa.setGuns(true); for (let i = 0; i < 20; i++) adv(CFG.pickupMs + 10); assert.equal(CFG.pickupMax, 0); assert.equal(pa.pickups.length, 0); assert.equal(pa.state().pk.length, 0); });
@@ -301,13 +301,13 @@ test('free for all: a kill pays 12,000, dying costs 4,000, the same victim twice
   for (let i = 0; i < 30; i++) adv(CFG.pickupMs + 10); assert.ok(pa.pickups.length <= pa.cfg.pickupMax && pa.pickups.length >= 5, 'they keep spawning up to a limit: ' + pa.pickups.length);
   const k = { id: 99, kind: 'heal', x: 3, z: 3 }; pa.pickups.push(k); b.x = 3; b.z = 3; b.hp = 150; adv(100); assert.ok(pa.pickups.includes(k), 'a full-health player leaves a heart'); b.hp = 30; adv(100); assert.ok(!pa.pickups.includes(k) && b.hp >= 90, 'a heart heals 60 (and the safe zone is mending b too)');
   const cn = { id: 100, kind: 'coins', x: 3, z: 3 }; pa.pickups.push(cn); const c0 = b.prof.coins; adv(100); assert.equal(b.prof.coins, c0 + 5000);
-  const rg = { id: 101, kind: 'rage', x: 3, z: 3 }; pa.pickups.push(rg); adv(100); assert.ok(b.rageUntil > pa.now()); b.x = 20; b.z = 10; a.x = 20; a.z = 0; c.x = 50; c.z = 30; a.hp = 150; adv(400); pa.shoot(b, { ry: Math.PI }); assert.equal(a.hp, 150 - 12 * 2, 'rage doubles damage');
+  const rg = { id: 101, kind: 'rage', x: 3, z: 3 }; pa.pickups.push(rg); adv(100); assert.ok(b.rageUntil > pa.now()); b.x = 20; b.z = 10; a.x = 20; a.z = 0; c.x = 50; c.z = 30; a.hp = 150; adv(400); pa.shoot(b, { ry: Math.PI }); assert.equal(a.hp, 150 - 28, 'rage doubles damage');
   const sh = { id: 102, kind: 'shield', x: 3, z: 3 }; pa.pickups.push(sh); b.x = 3; b.z = 3; adv(100); assert.ok(b.shield > pa.now(), 'a shield pickup'); pa.setGuns(false); assert.equal(pa.pickups.length, 0, 'switching guns off clears them');
 });
 test('a barrel roll dodges shots, lasts under half a second and cannot be spammed', () => {
   const { pa, ps, adv, sent } = party(2), [a, b] = ps; pa.setGuns(true); a.x = 20; a.z = 0; b.x = 20; b.z = 9; a.prof.gun = 'g_pop';
   pa.move(b, { x: 20, z: 9, y: 0, ry: 0, f: 9 }); assert.equal(b.f & 8, 8); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 150, 'a rolling player dodges');
-  adv(500); pa.move(b, { x: 20, z: 9, y: 0, ry: 0, f: 9 }); assert.equal(b.f & 8, 0, 'the roll flag runs out after 0.45 s'); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 138);
+  adv(500); pa.move(b, { x: 20, z: 9, y: 0, ry: 0, f: 9 }); assert.equal(b.f & 8, 0, 'the roll flag runs out after 0.45 s'); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 136);
   adv(400); pa.move(b, { x: 20, z: 9, y: 0, ry: 0, f: 1 }); adv(400); pa.move(b, { x: 20, z: 9, y: 0, ry: 0, f: 9 }); assert.equal(b.f & 8, 8, 'a new roll after the cooldown'); adv(100); pa.move(b, { x: 20, z: 9, y: 0, ry: 0, f: 1 });
   adv(200); pa.move(b, { x: 20, z: 9, y: 0, ry: 0, f: 9 }); assert.equal(b.f & 8, 0, 'rolling again straight away is ignored');
 });
@@ -316,10 +316,10 @@ test('the golden safe zone at the spawn: nobody shoots from it, nobody is hurt i
   assert.ok(S && S.r >= 14, 'the lobby has a big safe zone'); for (const sp of globalThis.FOUND_LAYOUT.lobby.spawns) assert.ok(Math.hypot(sp.x - S.x, sp.z - S.z) < S.r - 1, 'every spawn point is well inside it');
   c.x = 40; c.z = 40;
   a.x = S.x; a.z = S.z - 30; b.x = S.x; b.z = S.z - 20;          /* both outside, b in front of a */
-  pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 138, 'outside the zone shots land'); adv(400);
+  pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 136, 'outside the zone shots land'); adv(400);
   b.z = S.z - 2; b.hp = 150; a.z = S.z - 22; pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 150, 'a player standing in the zone cannot be hurt'); adv(400);
   b.hp = 150; b.z = S.z; a.z = S.z + 1; a.x = S.x; pa.shoot(b, { ry: Math.PI }); assert.equal(a.hp, 150, 'and cannot shoot from inside it'); assert.ok(!sent.slice(-3).some(m => m[1].t === 'shot' && m[1].id === b.id));
-  a.x = S.x + S.r + 0.5; a.z = S.z; b.x = S.x + S.r + 0.5; b.z = S.z + 12; adv(400); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 138, 'one step outside the edge it is a fight again');
+  a.x = S.x + S.r + 0.5; a.z = S.z; b.x = S.x + S.r + 0.5; b.z = S.z + 12; adv(400); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, 136, 'one step outside the edge it is a fight again');
   pa.pickups = []; for (let i = 0; i < 200; i++) pa.spawnPickup(0); assert.ok(pa.pickups.length > 0 && pa.pickups.every(k => Math.hypot(k.x - S.x, k.z - S.z) >= S.r + 2), 'pickups never spawn in the zone');
   b.hp = 0; b.deadAt = pa.now(); adv(CFG.respawnMs + 50); assert.ok(!b.deadAt && Math.hypot(b.x - S.x, b.z - S.z) < S.r, 'a respawn lands inside the safe zone');
 });
@@ -340,7 +340,7 @@ test('armour adds health and cuts damage; its abilities work (thorns, dodge, las
   const { pa, ps, adv } = party(2, () => 0.5), [a, b] = ps, AR = globalThis.FOUND_ARMOR; pa.setGuns(true);
   const wear = (p, id) => { if (!P.owns(p.prof, id)) p.prof.own.push(id); p.prof.look.armor = id; pa.fill(p); }, place = () => { a.x = 20; a.z = 0; b.x = 20; b.z = 10; a.shield = b.shield = 0; a.deadAt = b.deadAt = 0; };
   assert.equal(pa.mh(b), 150); wear(b, 'a_knight'); assert.equal(pa.mh(b), 150 + AR.BY.a_knight.hp); assert.equal(b.hp, pa.mh(b)); assert.equal(pa.state().players[1].mhp, pa.mh(b));
-  place(); a.prof.gun = 'g_pop'; adv(400); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, pa.mh(b) - Math.round(12 * (1 - AR.BY.a_knight.red)), 'armour cuts the hit');
+  place(); a.prof.gun = 'g_pop'; adv(400); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, pa.mh(b) - Math.round(12 * 1.175 * (1 - AR.BY.a_knight.red)), 'armour cuts the hit');
   /* wearing other armour keeps your share of health */
   b.hp = Math.round(pa.mh(b) / 2); wear(b, 'a_vest'); b.hp = Math.round(pa.mh(b) / 2); pa.refit(b); assert.ok(b.hp >= 1 && b.hp <= pa.mh(b));
   /* thorns: the shooter is hurt too */
@@ -353,7 +353,7 @@ test('armour adds health and cuts damage; its abilities work (thorns, dodge, las
   /* regen starts only after 4 s without being hit */
   const r = party(2, () => 0.5), [a3, b3] = r.ps; r.pa.setGuns(true); b3.prof.own.push('a_shell'); b3.prof.look.armor = 'a_shell'; r.pa.fill(b3); b3.x = 40; b3.z = 40; b3.hp = 50; b3.hurtAt = r.pa.now(); r.adv(2000); assert.equal(b3.hp, 50, 'not yet'); r.adv(4000); assert.ok(b3.hp > 50, 'then it heals: ' + b3.hp);
   /* berserk */
-  const z = party(2, () => 0.5), [a4, b4] = z.ps; z.pa.setGuns(true); a4.prof.own.push('a_berserk'); a4.prof.look.armor = 'a_berserk'; z.pa.fill(a4); a4.prof.gun = 'g_pop'; a4.x = 20; a4.z = 0; b4.x = 20; b4.z = 10; a4.shield = b4.shield = 0; a4.hp = 20; z.adv(400); z.pa.shoot(a4, { ry: 0 }); assert.equal(b4.hp, 150 - Math.round(12 * 1.4), 'berserk: +40% when low');
+  const z = party(2, () => 0.5), [a4, b4] = z.ps; z.pa.setGuns(true); a4.prof.own.push('a_berserk'); a4.prof.look.armor = 'a_berserk'; z.pa.fill(a4); a4.prof.gun = 'g_pop'; a4.x = 20; a4.z = 0; b4.x = 20; b4.z = 10; a4.shield = b4.shield = 0; a4.hp = 20; z.adv(400); z.pa.shoot(a4, { ry: 0 }); assert.equal(b4.hp, 150 - Math.round(12 * 1.4 * 1.175), 'berserk: +40% when low');
 });
 test('gun abilities: lifesteal, burn, pierce, chain, splash, crit', () => {
   const mk = gun => { const s = party(4, () => 0.5), [a, b, c, d] = s.ps; s.pa.setGuns(true); a.prof.own.push(gun); a.prof.gun = gun; a.x = 20; a.z = 0; b.x = 20; b.z = 10; c.x = 20; c.z = 20; d.x = 26; d.z = 10; for (const q of s.ps) { q.shield = 0; q.hp = 150; } return Object.assign(s, { a, b, c, d }); };
@@ -362,7 +362,7 @@ test('gun abilities: lifesteal, burn, pierce, chain, splash, crit', () => {
   s = mk('g_rail'); s.adv(400); s.pa.shoot(s.a, { ry: 0 }); assert.ok(s.b.hp < 150 && s.c.hp < 150, 'pierce hits two players in a line');
   s = mk('g_arc'); s.adv(400); s.pa.shoot(s.a, { ry: 0 }); assert.ok(s.b.hp < 150 && s.d.hp < 150 && s.c.hp === 150, 'chain lightning arcs to the nearest other player only');
   s = mk('g_nova'); s.d.x = 23; s.adv(400); s.pa.shoot(s.a, { ry: 0 }); assert.ok(s.b.hp < 150 && s.d.hp < 150, 'splash hurts the neighbour, ' + s.d.hp);
-  s = mk('g_gilded'); let crits = 0; for (let i = 0; i < 40; i++) { s.b.hp = 150; s.pa.rnd = () => (i % 5 === 0 ? 0.05 : 0.5); s.adv(500); s.pa.shoot(s.a, { ry: 0 }); if (150 - s.b.hp > 46) crits++; } assert.ok(crits >= 6 && crits <= 10, 'about one shot in five is a crit: ' + crits);
+  s = mk('g_gilded'); let crits = 0; for (let i = 0; i < 40; i++) { s.b.hp = 150; s.pa.rnd = () => (i % 5 === 0 ? 0.05 : 0.5); s.adv(500); s.pa.shoot(s.a, { ry: 0 }); if (150 - s.b.hp > 70) crits++; } assert.ok(crits >= 6 && crits <= 10, 'about one shot in five is a crit: ' + crits);
   assert.ok(G0.LIST.filter(g => g.ab).length >= 5 && G0.LIST.filter(g => g.ab).length <= 9, 'only a handful of special guns');
 });
 
@@ -379,6 +379,30 @@ test('the arena is huge and full of cover that blocks movement and shots', () =>
   const c = L.colliders.find(k => k.x1 - k.x0 > 2 && Math.hypot(k.x0, k.z0 - 8) < 90); const cx = (c.x0 + c.x1) / 2, cz = c.z0;
   a.x = cx; a.z = cz - 8; b.x = cx; b.z = cz - 8 + 14; a.shield = b.shield = 0; /* b is on the far side of the cover from a */ b.z = c.z1 + 3; adv(400); pa.shoot(a, { ry: 0 }); assert.equal(b.hp, pa.mh(b), 'cover blocks the shot');
   b.z = cz - 8 + 14 > c.z0 ? c.z0 - 3 : b.z; a.z = b.z - 10; adv(400); pa.shoot(a, { ry: 0 }); assert.ok(b.hp < pa.mh(b), 'with nothing in the way it lands');
+});
+
+
+console.log('weapon classes and gadgets');
+test('weapon classes: closer hits hurt more, shotguns fall off hard, snipers steady when held, sprayers bloom', () => {
+  const G = G0; assert.ok(G.LIST.every(g => g.cls && g.fall[0] > 0 && g.aim), 'every gun has a class');
+  assert.ok(new Set(G.LIST.map(g => g.aim)).size >= 4, 'steady, bloom, cone and scope all exist');
+  assert.ok(G.hurt(G.BY.g_pump, 2) > G.hurt(G.BY.g_pump, 25) * 3, 'a shotgun loses most of its damage at range'); assert.ok(G.hurt(G.BY.g_pistol, 3) > G.hurt(G.BY.g_pistol, 40) * 1.5); assert.ok(G.hurt(G.BY.g_sniper, 85) >= G.hurt(G.BY.g_sniper, 5), 'a sniper keeps its damage at range');
+  const { pa, ps, adv } = party(2, seeded(3)), [a, b] = ps; a.prof.own.push('g_sniper', 'g_smg'); a.prof.gun = 'g_sniper';
+  const run = held => { let h = 0; for (let i = 0; i < 60; i++) { a.x = 20; a.z = 0; b.x = 20; b.z = 60; b.hp = 150; b.deadAt = 0; b.shield = 0; adv(1500); if (held) { pa.aim(a, { on: true }); adv(800); } pa.shoot(a, { ry: 0 }); if (b.hp < 150) h++; } return h; };
+  const quick = run(false), steady = run(true); assert.ok(steady >= 54 && steady > quick + 12, 'holding the trigger steadies a sniper: ' + steady + ' vs ' + quick + ' of 60');
+  a.prof.gun = 'g_smg'; a.bloom = 0; for (let i = 0; i < 12; i++) { adv(100); pa.shoot(a, { ry: 0 }); } assert.ok(a.bloom > 0.1, 'spray builds up: ' + a.bloom); const hi = a.bloom; adv(3000); pa.shoot(a, { ry: 0 }); assert.ok(a.bloom < hi / 2, 'and settles when you let go');
+});
+test('gadgets: grenades fall off with distance and spare the thrower, cooldowns, no throwing in the safe zone, flash, med, smoke, napalm, cluster', () => {
+  const mk = id => { const s = party(3, () => 0.5), [a, b, c] = s.ps; s.pa.setGuns(true); for (const q of s.ps) { q.shield = 0; q.hp = 150; } a.prof.own.push(id); a.prof.gadget = id; a.x = 20; a.z = 0; b.x = 20; b.z = 19; c.x = 20; c.z = 23.5; return Object.assign(s, { a, b, c }); };
+  let s = mk('gd_frag'); s.pa.throwNade(s.a, { ry: 0 }); assert.equal(s.pa.nades.length, 1); s.pa.throwNade(s.a, { ry: 0 }); assert.equal(s.pa.nades.length, 1, 'on cooldown'); s.adv(1500);
+  assert.ok(s.b.hp < 150 && s.c.hp < 150 && s.b.hp < s.c.hp, 'closer to the blast hurts more: ' + s.b.hp + ' ' + s.c.hp); assert.equal(s.a.hp, 150, 'never hurts the thrower'); assert.equal(s.pa.nades.length, 0);
+  { const z = party(1), S = globalThis.FOUND_LAYOUT.lobby.safe; z.pa.setGuns(true); z.ps[0].x = S.x; z.ps[0].z = S.z; z.pa.throwNade(z.ps[0], { ry: 0 }); assert.equal(z.pa.nades.length, 0, 'no throwing from the safe zone'); }
+  s = mk('gd_flash'); s.pa.throwNade(s.a, { ry: 0 }); s.adv(1500); assert.ok(s.b.stunUntil > s.pa.now(), 'flashed'); s.a.hp = 150; s.b.shotAt = 0; s.pa.shoot(s.b, { ry: Math.PI }); assert.equal(s.a.hp, 150, 'a flashed player cannot shoot'); s.adv(3000); s.pa.shoot(s.b, { ry: Math.PI }); assert.ok(s.a.hp < 150, 'but can again after 2.5 s');
+  s = mk('gd_med'); s.b.hp = 30; s.pa.throwNade(s.a, { ry: 0 }); s.adv(1500); assert.ok(s.b.hp >= 90, 'a med grenade heals: ' + s.b.hp);
+  s = mk('gd_smoke'); s.pa.throwNade(s.a, { ry: 0 }); s.adv(1500); assert.equal(s.pa.zones.length, 1); s.a.prof.gun = 'g_pop'; s.pa.shoot(s.a, { ry: 0 }); assert.equal(s.b.hp, 150, 'smoke blocks the shot'); s.adv(8000); assert.equal(s.pa.zones.length, 0); s.adv(400); s.pa.shoot(s.a, { ry: 0 }); assert.ok(s.b.hp < 150, 'and it clears');
+  s = mk('gd_fire'); s.pa.throwNade(s.a, { ry: 0 }); s.adv(1500); for (let i = 0; i < 8; i++) s.adv(250); assert.ok(s.b.hp < 150 && s.c.hp < 150, 'napalm burns the ground: ' + s.b.hp);
+  s = mk('gd_cluster'); s.pa.throwNade(s.a, { ry: 0 }); s.adv(1500); assert.ok(s.b.hp < 150, 'a cluster bomb hurts');
+  const G = globalThis.FOUND_GADGETS; assert.ok(G.LIST.every(g => !g.dmg || g.dmg * 3 < 150 * 3 && g.dmg < 150), 'no grenade one-shots'); assert.equal(G.LIST.filter(g => C.BY[g.id].price).length, 2, 'two premium gadgets');
 });
 
 console.log(`\n${n} unit tests passed`);

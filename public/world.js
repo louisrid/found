@@ -532,6 +532,24 @@
     for (const [id, g] of pkMap) if (!ids.has(id)) { scene.remove(g); pkMap.delete(id); }
     for (const k of list || []) if (!pkMap.has(k[0])) { const g = pkModel(k[1]); g.position.set(k[2], 0, k[3]); scene.add(g); pkMap.set(k[0], g); }
   };
+  /* gadgets: a grenade flying in an arc, then the blast, a smoke cloud, a heal ring or flames */
+  const GADV = globalThis.FOUND_GADGETS;
+  function nadeSpec(id) { const d = GADV.BY[id] || GADV.BY[GADV.START]; return [[0.5, 0.52, 0.5, d.c1, 0, 0.28, 0], [0.4, 0.12, 0.4, d.c2, 0, 0.6, 0], [0.12, 0.2, 0.12, '#44444c', 0, 0.76, 0], [0.34, 0.07, 0.08, '#c8ccd6', 0.16, 0.84, 0]]; }
+  W.nade = m => {
+    if (!GADV.BY[m.g]) return; const grp = new THREE.Group(); grp.add(specGroup(nadeSpec(m.g), 0.9, 0.03)); scene.add(grp); const t0 = performance.now(), len = Math.hypot(m.x - m.x0, m.z - m.z0);
+    anim.push({ once: true, fn: () => { const k = Math.min(1, (performance.now() - t0) / m.ms); grp.position.set(m.x0 + (m.x - m.x0) * k, 0.6 + Math.sin(Math.PI * k) * (1.5 + Math.min(5, len / 4)), m.z0 + (m.z - m.z0) * k); grp.rotation.x = k * 12; grp.rotation.z = k * 7; if (k >= 1) { scene.remove(grp); return true; } } });
+  };
+  W.boom = m => {
+    const col = { frag: '#ff9f1c', flash: '#ffffff', smoke: '#aab0ba', med: '#2fd84a', fire: '#ff5a1a' }[m.k] || '#ff9f1c';
+    burst(m.x, 1.2, m.z, col, m.k === 'flash' ? 30 : 26, m.k === 'smoke' ? 4 : 11, 800); if (m.k === 'frag' || m.k === 'fire') burst(m.x, 1, m.z, '#ffd60a', 12, 7, 600);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 48), new THREE.MeshBasicMaterial({ color: col, transparent: true, side: THREE.DoubleSide, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.set(m.x, 0.12, m.z); scene.add(ring); const t0 = performance.now();
+    anim.push({ once: true, fn: () => { const k = Math.min(1, (performance.now() - t0) / 500); ring.scale.setScalar(Math.max(0.01, m.r * k)); ring.material.opacity = 0.9 * (1 - k); if (k >= 1) { scene.remove(ring); ring.material.dispose(); ring.geometry.dispose(); return true; } } });
+    if ((m.k === 'smoke' || m.k === 'fire') && m.ms) {
+      const sm = m.k === 'smoke', cl = new THREE.Group(); for (let i = 0; i < (sm ? 14 : 10); i++) { const s = sm ? m.r * (0.35 + Math.random() * 0.3) : 0.8 + Math.random() * 0.8, b = new THREE.Mesh(new THREE.BoxGeometry(s, sm ? s : s * 1.6, s), new THREE.MeshBasicMaterial({ color: sm ? '#c8ccd4' : (i % 2 ? '#ff7a1a' : '#ffd60a'), transparent: true, opacity: 0.85 })); const a = Math.random() * 6.283, r = Math.random() * m.r * 0.7; b.position.set(Math.sin(a) * r, sm ? s * 0.5 + Math.random() * 2 : s * 0.8, Math.cos(a) * r); cl.add(b); }
+      cl.position.set(m.x, 0, m.z); scene.add(cl); const t1 = performance.now();
+      anim.push({ once: true, fn: () => { const k = (performance.now() - t1) / m.ms; if (k >= 1) { scene.remove(cl); return true; } cl.children.forEach((b, i) => { b.rotation.y += 0.01; if (!sm) b.scale.y = 0.8 + 0.5 * Math.sin(performance.now() / 90 + i); b.material.opacity = 0.85 * (k > 0.85 ? (1 - k) / 0.15 : 1); }); } });
+    }
+  };
   W.pickupGot = m => { const d = PK[m.kind]; if (!d) return; burst(m.x, 2, m.z, d.c, 16, 8, 650); burst(m.x, 2, m.z, '#ffffff', 6, 5, 450); gunFloat(m.x, 5, m.z, d.name, '#ffffff'); };
   anim.push({ fn: t => { const on = W.gunsOn && W.map === 'lobby', now = performance.now();
     for (const g of pkMap.values()) { const u = g.userData; g.visible = !!on; if (!on) continue; const k = Math.min(1, (now - u.born) / 400); g.scale.setScalar(k * k * (3 - 2 * k) || 0.001);
@@ -852,6 +870,7 @@
   W.itemIcon = function (id, slot) {
     return shoot('c:' + id, () => {
       if (slot === 'gun') { const w = new THREE.Group(), m = gunModel(id); m.userData.tick(0.4); m.rotation.y = 1.15; w.add(m); return w; }
+      if (slot === 'gadget') { const w = new THREE.Group(); w.add(specGroup(nadeSpec(id), 1.2, 0.03)); w.rotation.y = 0.6; return w; }
       if (slot === 'pet') { const p = AV.pet(THREE, id); p.userData.anim(0, false, false); return p; }
       const look = { skin: 0, hair: slot === 'hat' ? 'none' : 'short', hc: 0, outfit: slot === 'outfit' ? id : 'tee', hat: slot === 'hat' ? id : '', acc: slot === 'acc' ? id : '', aura: slot === 'aura' ? id : '', armor: slot === 'armor' ? id : '' };
       const g = AV.make(THREE, look, '#2f7bff', slot === 'outfit' || slot === 'aura' || slot === 'armor' ? 'fig' : slot); g.userData.anim(slot === 'aura' ? 1.7 : 0, 0.016, {}); g.rotation.y = slot === 'acc' ? 2.6 : 0.35; return g;

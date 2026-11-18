@@ -263,6 +263,15 @@
     ["g_nova","gun","Nova Cannon","cosmic"],
     ["g_oblit","gun","Obliterator","cosmic",1200000],
     ["g_judge","gun","Judgement","cosmic",2500000],
+    /* gadgets */
+    ["gd_frag","gadget","Frag Grenade","starter"],
+    ["gd_flash","gadget","Flashbang","uncommon"],
+    ["gd_smoke","gadget","Smoke Bomb","uncommon"],
+    ["gd_med","gadget","Med Grenade","rare"],
+    ["gd_fire","gadget","Napalm","epic"],
+    ["gd_cluster","gadget","Cluster Bomb","legendary"],
+    ["gd_mega","gadget","Mega Bomb","mythic",400000],
+    ["gd_nuke","gadget","Mini Nuke","cosmic",1800000],
     /* armour */
     ["a_vest","armor","Padded Vest","common"],
     ["a_scrap","armor","Scrap Plate","common"],

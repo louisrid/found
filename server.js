@@ -120,6 +120,8 @@ const handlers = {
   gift(c, b) { const party = need(c), to = party.players.get(String(b.to)); if (!to) throw new Error('They left.'); P.giveCoins(c.prof, to.prof, Number(b.n)); store.touch(c.prof.id); store.touch(to.prof.id); me(c); send(c, { t: 'sent', n: Number(b.n), to: to.prof.name }); if (to.conn) { send(to.conn, { t: 'gifted', from: c.prof.name, n: Number(b.n) }); me(to.conn); } },
   daily(c) { P.claimDaily(c.prof, Date.now()); store.touch(c.prof.id); me(c); },
   shoot(c, b) { const party = c.party; if (party) party.shoot(party.players.get(c.prof.id), b); },
+  aim(c, b) { const party = c.party; if (party) party.aim(party.players.get(c.prof.id), b); },
+  throw(c, b) { const party = c.party; if (party) party.throwNade(party.players.get(c.prof.id), b); },
   /* the gun crate and the armour box: pay, get a random piece, see it in the reveal */
   crate(c, b) { const r = P.openCrate(c.prof, Math.random, b && b.kind === 'armor' ? 'armor' : 'gun'); store.touch(c.prof.id); send(c, { t: 'crated', r }); me(c); if (c.party) c.party.sync(); }
 };
