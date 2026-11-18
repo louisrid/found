@@ -445,12 +445,12 @@
   function healthBar() {
     const c = document.createElement('canvas'); c.width = 160; c.height = 28; const x = c.getContext('2d'), tex = new THREE.CanvasTexture(c);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, depthTest: false, transparent: true })); sp.scale.set(2.6, 0.46, 1); sp.renderOrder = 11; sp.visible = false;
-    sp.userData.draw = hp => { sp.userData.hp = hp; const k = Math.max(0, Math.min(1, hp / GUNS.HP)); x.clearRect(0, 0, 160, 28); x.fillStyle = '#0b0b0f'; rr(x, 2, 2, 156, 24, 12); x.fill(); x.fillStyle = '#ffffff'; rr(x, 6, 6, 148, 16, 8); x.fill();
+    sp.userData.draw = (hp, mh) => { sp.userData.hp = hp; sp.userData.mh = mh; const k = Math.max(0, Math.min(1, hp / (mh || GUNS.HP))); x.clearRect(0, 0, 160, 28); x.fillStyle = '#0b0b0f'; rr(x, 2, 2, 156, 24, 12); x.fill(); x.fillStyle = '#ffffff'; rr(x, 6, 6, 148, 16, 8); x.fill();
       if (k > 0) { x.fillStyle = k > 0.5 ? '#2fd84a' : k > 0.25 ? '#ffc61a' : '#ff3b30'; rr(x, 6, 6, Math.max(14, 148 * k), 16, 8); x.fill(); } tex.needsUpdate = true; };
     sp.userData.hp = -1; return sp;
   }
   W.gunsOn = false;
-  W.setHp = (id, hp) => { const o = W.me && W.me.id === id ? W.me : W.others.get(id); if (o) o.hp = hp; };
+  W.setHp = (id, hp, mhp) => { const o = W.me && W.me.id === id ? W.me : W.others.get(id); if (o) { o.hp = hp; if (mhp) o.mhp = mhp; } };
   /* small bursts, beams and floating numbers: each is a short-lived animation */
   const fxGeo = () => fxGeo.g || (fxGeo.g = new THREE.BoxGeometry(1, 1, 1));
   function burst(x, y, z, color, n, speed, life) {
@@ -486,9 +486,9 @@
     const t = performance.now() / 300; flare(from, d.dmg >= 50 ? 0.9 : 0.5, d.col === 'rainbow' ? '#ffffff' : d.col);
     m.e.forEach((r, i) => { const end = new THREE.Vector3(r[0], o.y + 2.3, r[1]); beam(from, end, d, t + i * 0.31); if (r[2]) burst(r[0], o.y + 2.3, r[1], d.col === 'rainbow' ? '#ff7ad9' : d.col, 5, 5, 420); });
   };
-  W.hit = function (m) { const o = whoIs(m.id); if (!o) return; o.hp = m.hp; gunFloat(o.x, o.y + 6, o.z, String(m.dmg), '#ffffff'); burst(o.x, o.y + 2.4, o.z, '#ff3b30', 4, 6, 380); };
+  W.hit = function (m) { const o = whoIs(m.id); if (!o) return; o.hp = m.hp; if (m.heal) { gunFloat(o.x, o.y + 6, o.z, '+', '#2fd84a'); return; } if (m.dodge) { gunFloat(o.x, o.y + 6, o.z, 'dodge', '#7af0ff'); return; } gunFloat(o.x, o.y + 6, o.z, String(m.dmg), m.crit ? '#ffd60a' : '#ffffff'); burst(o.x, o.y + 2.4, o.z, m.crit ? '#ffd60a' : '#ff3b30', 4, 6, 380); };
   W.killed = function (id) { const o = whoIs(id); if (!o) return; o.dead = true; o.hp = 0; const c = o.info && W.PC ? W.PC[(o.info.col || 0) % W.PC.length] : '#ffffff'; burst(o.x, o.y + 2.2, o.z, c, 16, 9, 800); burst(o.x, o.y + 2.2, o.z, '#ffffff', 8, 7, 600); };
-  W.spawned = function (id) { const o = whoIs(id); if (!o) return; o.dead = false; o.hp = GUNS.HP; burst(o.x, 0.4, o.z, '#7ad8ff', 12, 6, 700); };
+  W.spawned = function (id) { const o = whoIs(id); if (!o) return; o.dead = false; o.hp = o.mhp || GUNS.HP; burst(o.x, 0.4, o.z, '#7ad8ff', 12, 6, 700); };
   /* ---------------- pickups on the grass: a heart, a shield, a coin bag, a rage orb. Each bobs and turns inside a pillar of light ---------------- */
   const PK = {
     heal: { c: '#ff3b30', name: '+50 HP', spec: [[1.3, 0.45, 0.45, '#ff3b30', 0, 0, 0], [0.45, 1.3, 0.45, '#ff3b30', 0, 0, 0], [0.5, 0.5, 0.5, '#ffffff', 0, 0, 0, 'g'], [0.3, 0.3, 0.3, '#ff8aa0', 0.65, 0.65, 0, 'g']] },
@@ -514,16 +514,18 @@
       u.body.position.y = 2 + Math.sin(t * 3 + g.position.x) * 0.3; u.body.rotation.y = t * 1.8; u.ring.scale.setScalar(1 + Math.sin(t * 4 + g.position.z) * 0.1); u.beam.material.opacity = 0.16 + 0.08 * Math.sin(t * 5 + g.position.x); } } });
   W.setDead = (id, dead) => { const o = whoIs(id); if (o) o.dead = dead; };
   W.clearDead = () => { if (W.me) W.me.dead = false; W.others.forEach(o => { o.dead = false; }); };
-  /* aim help, only for the weakest guns: the nearest player inside a narrow cone in front of you, and the shot turns part of the way to them */
+  /* aim help: weak and only for the weakest guns over a wide cone, but once you are already aimed right at someone (inside TIGHT) every gun locks on, and better guns lock harder */
+  const TIGHT = 0.07;
   W.assistTarget = function (range, gun) {
-    const m = W.me, cone = (gun && gun.assist) || 0; if (!m || !cone) return null; let best = null, bd = 1e9;
+    const m = W.me, cone = Math.max((gun && gun.assist) || 0, gun && gun.lock ? TIGHT : 0); if (!m || !cone) return null; let best = null, bd = 1e9;
     for (const o of W.others.values()) { if (o.dead || !o.info || o.info.ghost) continue; const dx = o.x - m.x, dz = o.z - m.z, dist = Math.hypot(dx, dz); if (dist > range || dist < 0.5) continue;
-      const a = Math.atan2(dx, dz), diff = Math.abs(Math.atan2(Math.sin(a - m.ry), Math.cos(a - m.ry))); if (diff < cone && dist < bd) { bd = dist; best = { o, a }; } }
+      const a = Math.atan2(dx, dz), diff = Math.abs(Math.atan2(Math.sin(a - m.ry), Math.cos(a - m.ry))); if (diff < cone && dist < bd) { bd = dist; best = { o, a, diff }; } }
     return best;
   };
   W.aimAt = function (range, gun) {
     const m = W.me; if (!m) return 0; const t = W.assistTarget(range, gun); if (!t) return m.ry;
-    return m.ry + Math.atan2(Math.sin(t.a - m.ry), Math.cos(t.a - m.ry)) * ((gun && gun.pull) || 0);
+    const k = t.diff <= TIGHT ? Math.max((gun && gun.lock) || 0, (gun && gun.pull) || 0) : (gun && gun.pull) || 0;
+    return m.ry + Math.atan2(Math.sin(t.a - m.ry), Math.cos(t.a - m.ry)) * k;
   };
   /* an aim guide on the ground: a line out in front of you, and a red ring on whoever the shot will lock to */
   let guide = null, lockRing = null;
@@ -541,7 +543,7 @@
   /* each frame: bars on while guns are on, a dead player is hidden, rainbow guns shimmer */
   anim.push({ fn: t => {
     const on = W.gunsOn && W.map === 'lobby';
-    const each = o => { const g = o.g; if (!g || !g.userData.bar) return; const b = g.userData.bar, hp = o.hp == null ? GUNS.HP : o.hp; b.visible = on && !o.dead; if (b.userData.hp !== hp) b.userData.draw(hp);
+    const each = o => { const g = o.g; if (!g || !g.userData.bar) return; const b = g.userData.bar, hp = o.hp == null ? GUNS.HP : o.hp; b.visible = on && !o.dead; if (b.userData.hp !== hp || b.userData.mh !== o.mhp) b.userData.draw(hp, o.mhp);
       if (on && o.dead) g.visible = false; else if (o.dead === false && on) g.visible = !(o.info && o.info.ghost);
       const gm = g.userData.av && g.userData.av.userData.gun; if (gm) gm.userData.tick(t); };
     if (W.me) each(W.me); W.others.forEach(each);
@@ -826,9 +828,9 @@
     return shoot('c:' + id, () => {
       if (slot === 'gun') { const w = new THREE.Group(), m = gunModel(id); m.userData.tick(0.4); m.rotation.y = 1.15; w.add(m); return w; }
       if (slot === 'pet') { const p = AV.pet(THREE, id); p.userData.anim(0, false, false); return p; }
-      const look = { skin: 0, hair: slot === 'hat' ? 'none' : 'short', hc: 0, outfit: slot === 'outfit' ? id : 'tee', hat: slot === 'hat' ? id : '', acc: slot === 'acc' ? id : '', aura: slot === 'aura' ? id : '' };
-      const g = AV.make(THREE, look, '#2f7bff', slot === 'outfit' || slot === 'aura' ? 'fig' : slot); g.userData.anim(slot === 'aura' ? 1.7 : 0, 0.016, {}); g.rotation.y = slot === 'acc' ? 2.6 : 0.35; return g;
-    }, slot === 'outfit' ? 0.95 : slot === 'aura' ? 0.8 : 1);
+      const look = { skin: 0, hair: slot === 'hat' ? 'none' : 'short', hc: 0, outfit: slot === 'outfit' ? id : 'tee', hat: slot === 'hat' ? id : '', acc: slot === 'acc' ? id : '', aura: slot === 'aura' ? id : '', armor: slot === 'armor' ? id : '' };
+      const g = AV.make(THREE, look, '#2f7bff', slot === 'outfit' || slot === 'aura' || slot === 'armor' ? 'fig' : slot); g.userData.anim(slot === 'aura' ? 1.7 : 0, 0.016, {}); g.rotation.y = slot === 'acc' ? 2.6 : 0.35; return g;
+    }, slot === 'outfit' || slot === 'armor' ? 0.95 : slot === 'aura' ? 0.8 : 1);
   };
   /* a live stage in a modal: one figure or a gift box, turning */
   W.stage = function (cv) {
@@ -849,7 +851,7 @@
         m.scale.setScalar(1.7); g.add(m); g.userData.baseRy = 0.45; g.userData.tick = t => { m.position.y = Math.sin(t * 2) * 0.12; }; set(g, { y: 3.2, d: 10, ty: 1.4 }); return g; },
       item(id, slot) { if (slot === 'gun') { const g = new THREE.Group(), m = gunModel(id); m.scale.setScalar(3.4); m.position.z = -1.4; g.add(m); g.userData.baseRy = 1.2; g.userData.tick = t => m.userData.tick(t); set(g, { y: 2.2, d: 8, ty: 0.4 }); return; }
         if (slot === 'pet') { const p = AV.pet(THREE, id); p.scale.setScalar(1.6); p.userData.pet = true; const g = new THREE.Group(); g.add(p); g.userData.anim = t => p.userData.anim(t, false, false); g.userData.pet = true; set(g, { y: 1.8, d: 6, ty: 0.9 }); return; }
-        const look = { skin: 0, hair: slot === 'hat' ? 'none' : 'short', hc: 0, outfit: slot === 'outfit' ? id : 'tee', hat: slot === 'hat' ? id : '', acc: slot === 'acc' ? id : '', aura: slot === 'aura' ? id : '' };
+        const look = { skin: 0, hair: slot === 'hat' ? 'none' : 'short', hc: 0, outfit: slot === 'outfit' ? id : 'tee', hat: slot === 'hat' ? id : '', acc: slot === 'acc' ? id : '', aura: slot === 'aura' ? id : '', armor: slot === 'armor' ? id : '' };
         const a = AV.make(THREE, look, '#2f7bff'); const g = new THREE.Group(); g.add(a); g.userData.anim = (t, dt) => a.userData.anim(t, dt, {}); set(g, { y: 2.3, d: 9.2, ty: 1.9 }); },
       gift(kind) { const g = objModel('gift', kind); g.scale.setScalar(2.2); g.userData.baseRy = 0.5; set(g, { y: 2.2, d: 7.5, ty: 1.0 }); return g; },
       shake(k) { if (!obj) return; obj.position.x = Math.sin(performance.now() / 30) * 0.08 * k; obj.rotation.z = Math.sin(performance.now() / 40) * 0.1 * k; },

@@ -238,32 +238,48 @@
     ["p_hole","pet","Black hole buddy","cosmic"],
     /* guns (stats and models in guns.js) */
     ["g_pop","gun","Pop Pistol","starter"],
-    ["g_pea","gun","Pea Shooter","common"],
-    ["g_ketchup","gun","Ketchup Squirt","common"],
-    ["g_slime","gun","Slime Squirter","common"],
-    ["g_zap","gun","Zap SMG","uncommon"],
-    ["g_bubble","gun","Bubble Blaster","uncommon"],
-    ["g_banana","gun","Banana Blaster","uncommon"],
-    ["g_taco","gun","Taco Cannon","rare"],
-    ["g_lava","gun","Lava Laser","rare"],
-    ["g_pizza","gun","Pizza Piercer","rare"],
-    ["g_rail","gun","Rainbow Railgun","epic"],
-    ["g_cactus","gun","Cactus Shotgun","epic"],
-    ["g_disco","gun","Disco Minigun","epic"],
-    ["g_dragon","gun","Dragon Breath","legendary"],
-    ["g_galaxy","gun","Galaxy Cannon","legendary"],
-    ["g_duck","gun","Rubber Duck Doomsday","mythic"],
-    ["g_cosmic","gun","Cosmic Chaos Cannon","mythic"],
-    ["g_water","gun","Water Pistol","common"],
-    ["g_confetti","gun","Confetti Cannon","uncommon"],
-    ["g_sonic","gun","Sonic Boom Box","rare"],
-    ["g_thunder","gun","Thunder Cannon","epic"],
-    ["g_kraken","gun","Kraken Launcher","legendary"],
-    ["g_unicorn","gun","Unicorn Blaster","mythic"],
-    ["g_halo","gun","Halo Rifle","celestial"],
-    ["g_sunburst","gun","Sunburst Cannon","celestial"],
-    ["g_blackhole","gun","Singularity Gun","cosmic"],
-    ["g_bigbang","gun","Big Bang Blaster","cosmic"],
+    ["g_pistol","gun","Service Pistol","common"],
+    ["g_revolver","gun","Six Shooter","common"],
+    ["g_smg","gun","Mini SMG","common"],
+    ["g_carbine","gun","Carbine","uncommon"],
+    ["g_pump","gun","Pump Shotgun","uncommon"],
+    ["g_heavy","gun","Heavy Pistol","uncommon"],
+    ["g_rifle","gun","Assault Rifle","rare"],
+    ["g_tac","gun","Tactical SMG","rare"],
+    ["g_marks","gun","Marksman Rifle","rare"],
+    ["g_lmg","gun","Light Machine Gun","epic"],
+    ["g_dbl","gun","Double Barrel","epic"],
+    ["g_sniper","gun","Sniper Rifle","epic"],
+    ["g_leech","gun","Leech SMG","epic"],
+    ["g_arc","gun","Arc Thrower","legendary"],
+    ["g_auto","gun","Battle Rifle","legendary"],
+    ["g_combat","gun","Combat Shotgun","legendary"],
+    ["g_warden","gun","Warden Revolver","legendary",90000],
+    ["g_inferno","gun","Inferno Rifle","mythic"],
+    ["g_hyper","gun","Hyper SMG","mythic"],
+    ["g_gilded","gun","Gilded Revolver","mythic",250000],
+    ["g_rail","gun","Rail Piercer","celestial"],
+    ["g_havoc","gun","Havoc Minigun","celestial",600000],
+    ["g_nova","gun","Nova Cannon","cosmic"],
+    ["g_oblit","gun","Obliterator","cosmic",1200000],
+    ["g_judge","gun","Judgement","cosmic",2500000],
+    /* armour */
+    ["a_vest","armor","Padded Vest","common"],
+    ["a_scrap","armor","Scrap Plate","common"],
+    ["a_jacket","armor","Riot Jacket","uncommon"],
+    ["a_kevlar","armor","Kevlar Vest","uncommon"],
+    ["a_chain","armor","Chain Mail","rare"],
+    ["a_shell","armor","Turtle Shell","rare"],
+    ["a_knight","armor","Knight Plate","epic"],
+    ["a_ninja","armor","Shadow Suit","epic"],
+    ["a_phantom","armor","Phantom Cloak","legendary"],
+    ["a_guard","armor","Guardian Plate","legendary"],
+    ["a_berserk","armor","Berserker Plate","mythic"],
+    ["a_dragon","armor","Dragon Scale","mythic"],
+    ["a_aegis","armor","Aegis Armour","celestial"],
+    ["a_void","armor","Void Armour","cosmic"],
+    ["a_royal","armor","Royal Guard","mythic",400000],
+    ["a_titan","armor","Titan Suit","cosmic",1500000],
     /* auras: glowing effects that follow you (definitions in auras.js) */
     ["au_glow","aura","Soft glow","common"],
     ["au_mint","aura","Mint ring","common"],
@@ -283,13 +299,18 @@
   const RARITY = ['starter', 'common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'celestial', 'cosmic'];
   const RCOL = { starter: '#0b0b0f', common: '#6b6b76', uncommon: '#1fa34a', rare: '#2f5bff', epic: '#7a3cff', legendary: '#ff8a00', mythic: '#ff2d55', celestial: '#00c9b7', cosmic: '#c13cff' };
   const RNAME = { starter: 'Starter', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', mythic: 'Mythic', celestial: 'Celestial', cosmic: 'Cosmic' };
-  const BY = {}; ITEMS.forEach(r => { BY[r[0]] = { id: r[0], slot: r[1], name: r[2], rarity: r[3] }; });
+  const BY = {}; ITEMS.forEach(r => { BY[r[0]] = { id: r[0], slot: r[1], name: r[2], rarity: r[3], price: r[4] || 0 }; });
   const STARTER = ITEMS.filter(r => r[3] === 'starter').map(r => r[0]);
   /* the shop: one fixed price per rarity */
-  const PRICE = { starter: 0, common: 300, uncommon: 500, rare: 800, epic: 2000, legendary: 5000, mythic: 12000, celestial: 30000, cosmic: 80000 };
+  const PRICE = { starter: 0, common: 400, uncommon: 1200, rare: 3500, epic: 9000, legendary: 22000, mythic: 55000, celestial: 130000, cosmic: 300000 };
+  /* what an item costs: its own price when it has one (the premium guns and armour), otherwise the price of its rarity */
+  const price = id => { const it = BY[id]; return it ? (it.price || PRICE[it.rarity]) : 0; };
   /* the mystery box: one kind, one price, a random item you don't own (odds in percent) */
-  const BOX = { name: 'Mystery Box', price: 600, odds: { common: 46, uncommon: 20, rare: 18, epic: 10, legendary: 4, mythic: 1.5, celestial: 0.4, cosmic: 0.1 } };
+  const BOX = { name: 'Clothes Box', price: 2500, odds: { common: 46, uncommon: 20, rare: 18, epic: 10, legendary: 4, mythic: 1.5, celestial: 0.4, cosmic: 0.1 } };
   /* the gun crate: 500 coins for a random gun (odds in percent; a gun you own pays `dup` of its shop price back). Players earn 1,000 coins a minute, so a crate is half a minute away */
-  const CRATE = { name: 'Gun Crate', price: 500, odds: { common: 30, uncommon: 26, rare: 20, epic: 12, legendary: 7, mythic: 3, celestial: 1.5, cosmic: 0.5 }, dup: 0.1 };
-  root.FOUND_CATALOG = Object.freeze({ ITEMS, BY, RARITY, RCOL, RNAME, STARTER, PRICE, BOX, CRATE });
+  const CRATE = { name: 'Gun Crate', price: 4000, odds: { common: 30, uncommon: 26, rare: 20, epic: 12, legendary: 7, mythic: 3, celestial: 1.5, cosmic: 0.5 }, dup: 0.1 };
+  /* the third box: armour. Shop-only premium pieces (the ones with their own price) are never in a crate. */
+  const ARMORBOX = { name: 'Armour Box', price: 3500, odds: CRATE.odds, dup: CRATE.dup };
+  const CRATES = { gun: CRATE, armor: ARMORBOX };
+  root.FOUND_CATALOG = Object.freeze({ ITEMS, BY, RARITY, RCOL, RNAME, STARTER, PRICE, price, BOX, CRATE, ARMORBOX, CRATES });
 })(globalThis);

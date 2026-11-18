@@ -39,7 +39,7 @@
   const myRow = () => S.party && S.me ? S.party.players.find(p => p.id === S.me.id) : null;
   /* a hider in a round is drawn as their object */
   const gunsOn = () => !!(S.party && S.party.guns && S.party.phase === 'lobby');
-  const GUNS = globalThis.FOUND_GUNS, myGun = () => GUNS.BY[S.me && S.me.gun] || GUNS.BY[GUNS.START];
+  const GUNS = globalThis.FOUND_GUNS, ARM = globalThis.FOUND_ARMOR, myMax = () => GUNS.HP + ARM.of(S.me && S.me.look && S.me.look.armor).hp, myGun = () => GUNS.BY[S.me && S.me.gun] || GUNS.BY[GUNS.START];
   const deco = p => Object.assign({}, p, { asProp: live(S.phase) && p.role === 'hider' && !p.found ? p.prop : null, ghost: live(S.phase) && p.role === 'hider' && p.found, gun: gunsOn() ? (GUNS.BY[p.gun] ? p.gun : GUNS.START) : '' });   // a caught hider is out and unseen
   const meInfo = () => { const r = myRow() || {}; return deco({ id: S.me.id, name: S.me.name, look: S.me.look, pet: S.me.pet, col: S.me.col, gun: S.me.gun, role: r.role, found: r.found, prop: r.prop }); };
   const playerName = id => { const p = S.party && S.party.players.find(q => q.id === id); return p ? p.name : 'Someone'; };
@@ -55,7 +55,7 @@
       if (S.practice && m.phase === 'lobby' && m.players.length === 1) { S.practice = false; send({ t: 'start' }); }
       for (const p of m.players) W.upsert(deco(p));
       W.keep(m.players.map(p => p.id)); W.setMe(meInfo());
-      W.gunsOn = gunsOn(); if (W.gunsOn) { for (const p of m.players) { W.setHp(p.id, p.hp); W.setDead(p.id, !!p.dead); } S.dead = !!(myRow() || {}).dead; const r0 = myRow(); if (r0 && r0.hp != null && !S.dead) S.hp = r0.hp; } else { S.dead = false; W.clearDead(); }
+      W.gunsOn = gunsOn(); if (W.gunsOn) { for (const p of m.players) { W.setHp(p.id, p.hp, p.mhp); W.setDead(p.id, !!p.dead); } S.dead = !!(myRow() || {}).dead; const r0 = myRow(); if (r0 && r0.hp != null && !S.dead) S.hp = r0.hp; } else { S.dead = false; W.clearDead(); }
       W.setPickups(W.gunsOn ? m.pk || [] : []);
       const r = myRow() || {}; W.role = live(m.phase) ? r.role : null; W.seeking = m.phase === 'seek'; W.blind = m.phase === 'hide' && r.role === 'seeker'; W.dead = live(m.phase) && !!r.found; W.frozen = W.blind || m.phase === 'results' || W.dead || !!S.dead;
       if (prev !== m.phase) phaseChanged(prev, m.phase);
@@ -99,7 +99,7 @@
     crated(m) { if (S.crate) S.crate.result(m.r); },
     /* guns */
     shot(m) { W.shot(m); const mine = S.me && m.id === S.me.id, big = (GUNS.BY[m.g] || {}).dmg >= 50; if (mine) { if (big) SFX.boom(); else SFX.pew(0.05); } else SFX.pew(0.018); },
-    hit(m) { W.hit(m); if (S.me && m.by === S.me.id) SFX.tick(); if (S.me && m.id === S.me.id) { S.hp = m.hp; paintGun(); const v = $('#hurt'); v.classList.remove('on'); void v.offsetWidth; v.classList.add('on'); } },
+    hit(m) { W.hit(m); if (S.me && m.by === S.me.id) SFX.tick(); if (S.me && m.id === S.me.id) { S.hp = m.hp; paintGun(); if (m.dmg > 0) { const v = $('#hurt'); v.classList.remove('on'); void v.offsetWidth; v.classList.add('on'); } } },
     kill(m) {
       W.killed(m.id); const mine = S.me && m.by === S.me.id, me = S.me && m.id === S.me.id;
       feed(`<b>${esc(playerName(m.by))}</b> ▸ ${esc(playerName(m.id))}`);
@@ -107,8 +107,8 @@
       else if (mine) { SFX.win(); toast(m.coins ? `+${fmt(m.coins)} coins` : 'Same victim again: no reward yet'); }
       if (me && m.lost) toast(`You lost ${fmt(m.lost)} coins`);
     },
-    pk(m) { W.pickupGot(m); if (S.me && m.by === S.me.id) { SFX.pop(); toast(({ heal: '+50 HP', shield: 'Shield for 5 seconds', coins: '+1,000 coins', rage: 'Rage: double damage for 8 seconds' })[m.kind] || ''); } },
-    spawned(m) { W.spawned(m.id); if (S.me && m.id === S.me.id) { S.dead = false; S.hp = GUNS.HP; W.frozen = false; paintGun(); } },
+    pk(m) { W.pickupGot(m); if (S.me && m.by === S.me.id) { SFX.pop(); toast(({ heal: '+60 HP', shield: 'Shield for 5 seconds', coins: '+5,000 coins', rage: 'Rage: double damage for 8 seconds' })[m.kind] || ''); } },
+    spawned(m) { W.spawned(m.id); if (S.me && m.id === S.me.id) { S.dead = false; S.hp = myMax(); W.frozen = false; paintGun(); } },
     bought(m) { SFX.pop(); toast(`Bought ${m.r.name}.`); S.sel = null; },
     left() { leaveParty(); if (S.explore) { S.explore = false; roam(0); } else send({ t: 'play' }); },
     err(m) { toast(m.m); SFX.nope(); if ((m.of === 'play' || m.of === 'auth') && !S.party) showHome(); if (m.of === 'open' && S.reveal) S.reveal.fail(); if (m.of === 'crate' && S.crate) S.crate.fail(); }
@@ -152,7 +152,7 @@
   function enterParty() {
     $('#roam').hidden = true;
     W.mode = 'play'; W.menuHidden = true; $('#home').hidden = true; $('#hud').hidden = false; touchControls(true);
-    if (S.party.pub && !S.tipped.guns) { S.tipped.guns = 1; setTimeout(() => toast('Guns are on. Kill = +10,000 coins. Tap Hide & Seek for a round.'), 900); }
+    if (S.party.pub && !S.tipped.guns) { S.tipped.guns = 1; setTimeout(() => toast('Guns are on. Kill = +12,000 coins. Tap Hide & Seek for a round.'), 900); }
   }
   function leaveParty() { S.party = null; S.phase = ''; S.round = null; closeLayer(); W.clearItems(); W.gunsOn = false; S.dead = false; $('#hud').classList.remove('in-round'); $('#hud').hidden = true; }
   function phaseChanged(prev, ph) {
@@ -290,13 +290,16 @@
   }
 
   /* ---------------- locker (what you own) and shop (what you can buy) ---------------- */
-  const SLOTS = [['outfit', 'Outfits'], ['hat', 'Hats'], ['acc', 'Extras'], ['pet', 'Pets'], ['aura', 'Auras'], ['gun', 'Guns']], LOOKS = [['look', 'Hair & skin'], ['col', 'Colour']];
+  const SLOTS = [['outfit', 'Outfits'], ['hat', 'Hats'], ['acc', 'Extras'], ['pet', 'Pets'], ['aura', 'Auras'], ['armor', 'Armour'], ['gun', 'Guns']], LOOKS = [['look', 'Hair & skin'], ['col', 'Colour']];
   const RANK = {}; C.RARITY.forEach((r, i) => { RANK[r] = i; });
   const rcol = r => r === 'starter' ? '#8a8a99' : C.RCOL[r];
   const gunFor = () => wTab === 'gun' ? S.me.gun || GUNS.START : '';
   let wTab = 'outfit', wMode = 'locker';
   const owned = id => C.STARTER.includes(id) || S.me.own.includes(id);
   const myCol = () => W.PC[S.me.col % W.PC.length];
+  /* the one-line stats and the abilities of a gun or a piece of armour, for the shop tiles and the reveal */
+  const statLine = id => { const g = GUNS.BY[id], a = ARM.BY[id]; return g ? `${g.dmg}${g.pellets > 1 ? '×' + g.pellets : ''} dmg · ${(1000 / g.ms).toFixed(1)}/s` : a ? `+${a.hp} hp · ${Math.round(a.red * 100)}% armour` : ''; };
+  const abOf = id => { const g = GUNS.BY[id], a = ARM.BY[id]; return g ? (g.ab ? [g.abName + ': ' + g.abText] : []) : a ? a.abilities : []; };
   function showWardrobe(mode) {
     wMode = mode; S.sel = null; if (mode === 'shop' && (wTab === 'look' || wTab === 'col')) wTab = 'outfit';
     layer(`<div class="card modal"><div class="mhead"><div><h2>${mode === 'shop' ? 'Shop' : 'Locker'}</h2><div class="sub"><span class="pill coin coins"></span></div></div><div class="mtools"><button class="btn sm" data-a="${mode === 'shop' ? 'locker' : 'shop'}">${mode === 'shop' ? 'Locker' : 'Shop'}</button><button class="btn icon" data-a="close" aria-label="Close">&#x2715;</button></div></div>
@@ -318,10 +321,11 @@
       let list = C.ITEMS.filter(r => r[1] === wTab).map(r => C.BY[r[0]]).filter(i => shop ? !owned(i.id) : owned(i.id)).sort((a, b) => RANK[a.rarity] - RANK[b.rarity]);
       const cur = wTab === 'pet' ? me.pet : wTab === 'gun' ? me.gun : me.look[wTab];
       const none = !shop && wTab !== 'outfit' && wTab !== 'gun' ? `<div class="it${!cur ? ' on' : ''}" data-a="wear" data-v=""><i class="none"></i><b>None</b></div>` : '';
-      const tile = i => `<div style="--rc:${rcol(i.rarity)}" class="it r-${i.rarity}${(shop ? S.sel === i.id : cur === i.id) ? ' on' : ''}" data-a="${shop ? 'pick' : 'wear'}" data-v="${i.id}"><i class="rt">${C.RNAME[i.rarity]}</i><img data-icon="${i.id}" data-slot="${i.slot}" alt=""><b>${esc(i.name)}</b>${shop ? `<span class="p">${fmt(C.PRICE[i.rarity])}</span>` : ''}</div>`;
-      const crate = shop && wTab === 'gun' ? `<div class="boxbar"><img data-icon="g_cosmic" data-slot="gun" alt=""><div><b>Gun Crate</b><span>Win a gun, rarest ones last. Duplicates pay coins back. Coins come in at 1,000 a minute.</span></div><div class="boxbtns"><button class="btn black" data-a="crate"${me.coins >= C.CRATE.price ? '' : ' disabled'}>Open ${fmt(C.CRATE.price)}</button></div></div>` : '';
-      const box = shop && wTab !== 'gun' ? `<div class="boxbar"><img src="${W.giftIcon('box')}" alt=""><div><b>Mystery Box${me.boxes ? ' ×' + me.boxes : ''}</b><span>A random item you don't own.</span></div><div class="boxbtns">${me.daily ? '<button class="btn black" data-a="daily">Free today</button>' : ''}${me.boxes ? '<button class="btn black" data-a="open">Open</button>' : ''}<button class="btn" data-a="buybox"${me.coins >= C.BOX.price ? '' : ' disabled'}>Buy ${fmt(C.BOX.price)}</button></div></div>` : '';
-      const legend = shop ? `<div class="legend">${C.RARITY.filter(r => r !== 'starter').map(r => `<span class="r-${r}" style="--rc:${C.RCOL[r]}">${C.RNAME[r]} ${fmt(C.PRICE[r])}</span>`).join('')}</div><p class="earn-line">Get coins by playing rounds, collecting idle coins, the daily spin and Odd one out.</p>` : '';
+      const tile = i => `<div style="--rc:${rcol(i.rarity)}" class="it r-${i.rarity}${(shop ? S.sel === i.id : cur === i.id) ? ' on' : ''}" data-a="${shop ? 'pick' : 'wear'}" data-v="${i.id}"><i class="rt">${C.RNAME[i.rarity]}</i><img data-icon="${i.id}" data-slot="${i.slot}" alt=""><b>${esc(i.name)}</b>${i.slot === 'gun' || i.slot === 'armor' ? `<small class="ab">${statLine(i.id)}${abOf(i.id).length ? ' · ' + esc(abOf(i.id)[0].split(':')[0]) : ''}</small>` : ''}${shop ? `<span class="p">${fmt(C.price(i.id))}</span>` : ''}</div>`;
+      const crateBar = (kind, title, blurb, icon, slot) => { const K = C.CRATES[kind]; return `<div class="boxbar"><img data-icon="${icon}" data-slot="${slot}" alt=""><div><b>${title}</b><span>${blurb}</span></div><div class="boxbtns"><button class="btn black" data-a="crate" data-v="${kind}"${me.coins >= K.price ? '' : ' disabled'}>Open ${fmt(K.price)}</button></div></div>`; };
+      const crate = shop && wTab === 'gun' ? crateBar('gun', 'Gun Crate', 'Win a gun, rarest ones last. Duplicates pay coins back. The priciest guns are shop-only.', 'g_nova', 'gun') : shop && wTab === 'armor' ? crateBar('armor', 'Armour Box', 'Win armour with extra health and abilities. Duplicates pay coins back.', 'a_aegis', 'armor') : '';
+      const box = shop && wTab !== 'gun' && wTab !== 'armor' ? `<div class="boxbar"><img src="${W.giftIcon('box')}" alt=""><div><b>Clothes Box${me.boxes ? ' ×' + me.boxes : ''}</b><span>A random outfit, hat, extra, pet or aura you don't own.</span></div><div class="boxbtns">${me.daily ? '<button class="btn black" data-a="daily">Free today</button>' : ''}${me.boxes ? '<button class="btn black" data-a="open">Open</button>' : ''}<button class="btn" data-a="buybox"${me.coins >= C.BOX.price ? '' : ' disabled'}>Buy ${fmt(C.BOX.price)}</button></div></div>` : '';
+      const legend = shop ? `<div class="legend">${C.RARITY.filter(r => r !== 'starter').map(r => `<span class="r-${r}" style="--rc:${C.RCOL[r]}">${C.RNAME[r]} ${fmt(C.PRICE[r])}</span>`).join('')}</div><p class="earn-line">Earn 2,000 coins a minute just by being here, 12,000 for every kill, plus rounds, the daily spin and Odd one out.</p>` : '';
       inner = crate + box + legend + (list.length || none ? `<div class="grid">${none}${list.map(tile).join('')}</div>` : `<p class="big">${shop ? 'You own all of these.' : 'Nothing here yet. Visit the shop.'}</p>`);
     }
     body.innerHTML = tabs + inner; paintBuy();
@@ -334,8 +338,8 @@
   /* shop: the item you tapped is tried on, with its price and a Buy button under the figure */
   function paintBuy() {
     const el = $('#lk-buy'); if (!el) return; const it = S.sel && C.BY[S.sel]; if (!it || wMode !== 'shop') { el.innerHTML = ''; return; }
-    const price = C.PRICE[it.rarity], can = S.me.coins >= price;
-    el.innerHTML = `<b>${esc(it.name)}</b><span style="color:${C.RCOL[it.rarity]}">${C.RNAME[it.rarity]}</span><button class="btn black big" data-a="buy" data-v="${it.id}"${can ? '' : ' disabled'}>${can ? 'Buy ' + fmt(price) : 'Need ' + fmt(price - S.me.coins) + ' more'}</button>`;
+    const price = C.price(it.id), can = S.me.coins >= price;
+    el.innerHTML = `<b>${esc(it.name)}</b><span style="color:${C.RCOL[it.rarity]}">${C.RNAME[it.rarity]}${statLine(it.id) ? ' · ' + statLine(it.id) : ''}</span>${abOf(it.id).map(t => `<span class="abl">${esc(t)}</span>`).join('')}<button class="btn black big" data-a="buy" data-v="${it.id}"${can ? '' : ' disabled'}>${can ? 'Buy ' + fmt(price) : 'Need ' + fmt(price - S.me.coins) + ' more'}</button>`;
   }
   function tryOn(id) { const it = C.BY[id], look = Object.assign({}, S.me.look); let pet = S.me.pet, gun = gunFor(); if (it.slot === 'pet') pet = id; else if (it.slot === 'gun') gun = id; else look[it.slot] = id; if (S.stage) S.stage.figure(look, pet, myCol(), gun); }
   function wear(slot, id) {
@@ -347,7 +351,7 @@
   /* opening a Mystery Box: tap, it rattles, it opens */
   function reveal() {
     if (!S.me.boxes) return; const back = S.layer; closeLayer();
-    const el = document.createElement('div'); el.className = 'reveal'; el.innerHTML = `<div class="top"><h2>Mystery Box</h2><p id="rv-sub">Tap to open</p></div><div class="rv-stage"><canvas id="rv-c"></canvas></div><div class="bottom" id="rv-b"></div>`;
+    const el = document.createElement('div'); el.className = 'reveal'; el.innerHTML = `<div class="top"><h2>Clothes Box</h2><p id="rv-sub">Tap to open</p></div><div class="rv-stage"><canvas id="rv-c"></canvas></div><div class="bottom" id="rv-b"></div>`;
     document.body.appendChild(el);
     const st = W.stage($('#rv-c')); if (!st) { el.remove(); return; } st.gift('box');
     let phase = 'idle', res = null, t0 = 0;
@@ -379,7 +383,7 @@
     const on = gunsOn(), hp = $('#hp'), fb = $('#fire'), rip = $('#rip');
     hp.hidden = !on; fb.hidden = !on; $('#keys').hidden = !on || !!W.touch; $('#hud').classList.toggle('guns', on);
     if (!on) { rip.hidden = true; return; }
-    const r = myRow() || {}, n = S.hp == null ? GUNS.HP : S.hp; $('#hp-n').textContent = Math.max(0, Math.round(n)); const f = $('#hp-fill'); f.style.transform = `scaleX(${Math.max(0, n / GUNS.HP)})`; f.style.background = n > 50 ? '#2fd84a' : n > 25 ? '#ffc61a' : '#ff3b30';
+    const r = myRow() || {}, mx = r.mhp || myMax(), n = S.hp == null ? mx : S.hp; $('#hp-n').textContent = Math.max(0, Math.round(n)); const f = $('#hp-fill'); f.style.transform = `scaleX(${Math.max(0, Math.min(1, n / mx))})`; f.style.background = n > mx / 3 ? '#2fd84a' : n > mx / 6 ? '#ffc61a' : '#ff3b30';
     hp.classList.toggle('low', n <= 25); $('#hp-k').textContent = `${r.kills || 0} kills`;
     const g = myGun(); if (fb.dataset.g !== g.id) { fb.dataset.g = g.id; $('#fire-i').src = W.itemIcon(g.id, 'gun'); } $('#fire-g').textContent = g.name; rip.hidden = !S.dead;
   }
@@ -412,49 +416,50 @@
 
   /* ---------------- the gun crate: shake, a spinning strip of guns, then the card ---------------- */
   const RFX = { common: { rays: 0, parts: 10, shake: 0, flash: 0.0 }, uncommon: { rays: 0, parts: 18, shake: 0, flash: 0.25 }, rare: { rays: 1, parts: 26, shake: 0.4, flash: 0.45 }, epic: { rays: 1, parts: 40, shake: 0.8, flash: 0.7 }, legendary: { rays: 2, parts: 60, shake: 1.2, flash: 0.9 }, mythic: { rays: 3, parts: 90, shake: 1.8, flash: 1 }, celestial: { rays: 4, parts: 130, shake: 2.4, flash: 1 }, cosmic: { rays: 5, parts: 190, shake: 3, flash: 1 } };
-  function crateReveal() {
-    if (S.crate) return; if (S.me.coins < C.CRATE.price) { toast(`A Gun Crate costs ${fmt(C.CRATE.price)} coins. You earn 1,000 a minute.`); SFX.nope(); return; }
+  function crateReveal(kind = 'gun') {
+    const K = C.CRATES[kind], isA = kind === 'armor', slot = isA ? 'armor' : 'gun', title = isA ? 'Armour Box' : 'Gun Crate';
+    if (S.crate) return; if (S.me.coins < K.price) { toast(`${isA ? 'An Armour Box' : 'A Gun Crate'} costs ${fmt(K.price)} coins. You earn 2,000 a minute.`); SFX.nope(); return; }
     const back = S.layer; closeLayer();
     const el = document.createElement('div'); el.className = 'crate-fx';
-    el.innerHTML = `<div class="cr-bg"></div><div class="cr-top"><h2>Gun Crate</h2><p id="cr-sub">Tap the crate to open · ${fmt(C.CRATE.price)} coins</p></div><div class="cr-stage"><canvas id="cr-c"></canvas></div>
+    el.innerHTML = `<div class="cr-bg"></div><div class="cr-top"><h2>${title}</h2><p id="cr-sub">Tap the crate to open · ${fmt(K.price)} coins</p></div><div class="cr-stage"><canvas id="cr-c"></canvas></div>
       <div class="cr-strip" id="cr-strip" hidden><div class="cr-track" id="cr-track"></div><i class="cr-mark"></i></div><div class="cr-flash" id="cr-flash"></div><div class="cr-card" id="cr-card" hidden></div><div class="cr-bottom" id="cr-b"><span class="pill coin coins"></span></div>`;
     document.body.appendChild(el); paintMe();
     const st = W.stage($('#cr-c')); if (!st) { el.remove(); return; } st.crate();
     let phase = 'idle', res = null, t0 = 0;
     S.crate = { result(r) { res = r; }, fail() { finish(); } };
-    const order = C.RARITY.filter(r => r !== 'starter'), pool = C.ITEMS.filter(i => i[1] === 'gun' && i[3] !== 'starter');
+    const order = C.RARITY.filter(r => r !== 'starter'), pool = C.ITEMS.filter(i => i[1] === slot && i[3] !== 'starter' && !C.BY[i[0]].price);
     st.onTick(() => { if (phase !== 'shaking') return; const k = Math.min(1, (performance.now() - t0) / 1300); st.shake(0.5 + k * 2.2); if (k < 1 && Math.random() < 0.08) SFX.tick(); if (res && k >= 1) { phase = 'strip'; spin(); } });
-    $('#cr-c').addEventListener('pointerdown', () => { if (phase !== 'idle') return; phase = 'shaking'; t0 = performance.now(); $('#cr-sub').textContent = 'Opening…'; send({ t: 'crate' }); SFX.click(); });
+    $('#cr-c').addEventListener('pointerdown', () => { if (phase !== 'idle') return; phase = 'shaking'; t0 = performance.now(); $('#cr-sub').textContent = 'Opening…'; send({ t: 'crate', kind }); SFX.click(); });
     const flash = (col, k) => { const f = $('#cr-flash'); f.style.background = col; f.style.setProperty('--k', k); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); };
     /* the strip: 44 guns, the prize at 36, slowing to a stop under the marker */
     function spin() {
       st.calm(); flash('#fff', 0.9); SFX.pop(); $('#cr-c').style.visibility = 'hidden'; const strip = $('#cr-strip'), track = $('#cr-track'); strip.hidden = false; $('#cr-sub').textContent = '';
       const W0 = Math.min(150, Math.max(104, innerWidth / 5)), N = 44, WIN = 36, cells = [];
-      for (let i = 0; i < N; i++) { let id; if (i === WIN) id = res.item; else { const r = Math.random() * 100; let acc = 0, rar = 'common'; for (const k of order) { acc += C.CRATE.odds[k]; if (r < acc) { rar = k; break; } } const list = pool.filter(q => q[3] === rar); id = list[Math.floor(Math.random() * list.length)][0]; } cells.push(id); }
+      for (let i = 0; i < N; i++) { let id; if (i === WIN) id = res.item; else { const r = Math.random() * 100; let acc = 0, rar = 'common'; for (const k of order) { acc += K.odds[k]; if (r < acc) { rar = k; break; } } const list = pool.filter(q => q[3] === rar); id = list[Math.floor(Math.random() * list.length)][0]; } cells.push(id); }
       track.innerHTML = cells.map(id => `<div class="cr-c r-${C.BY[id].rarity}" style="width:${W0}px;--rc:${C.RCOL[C.BY[id].rarity]}"><img data-icon="${id}" alt=""><b>${esc(C.BY[id].name)}</b></div>`).join('');
-      $$('#cr-track img').forEach(im => { im.src = W.itemIcon(im.dataset.icon, 'gun'); });
+      $$('#cr-track img').forEach(im => { im.src = W.itemIcon(im.dataset.icon, slot); });
       const stripW = strip.clientWidth, jitter = (Math.random() - 0.5) * W0 * 0.6, target = WIN * W0 + W0 / 2 + jitter - stripW / 2, T = 4600, s0 = performance.now(); let lastI = -1;
       const ease = x => 1 - Math.pow(1 - x, 4);
       (function step() { const k = Math.min(1, (performance.now() - s0) / T), x = target * ease(k); track.style.transform = `translateX(${-x}px)`; const i = Math.floor((x + stripW / 2) / W0); if (i !== lastI) { lastI = i; SFX.tick(); }
         if (k < 1) requestAnimationFrame(step); else land(); })();
     }
     function land() {
-      phase = 'shown'; const r = res, fx = RFX[r.rarity], col = C.RCOL[r.rarity], d = GUNS.BY[r.item];
+      phase = 'shown'; const r = res, fx = RFX[r.rarity], col = C.RCOL[r.rarity], d = isA ? ARM.BY[r.item] : GUNS.BY[r.item];
       $$('#cr-track .cr-c')[36].classList.add('win'); SFX.win(); if (RANK[r.rarity] >= RANK.legendary) [523, 659, 784, 1047, 1319].concat(RANK[r.rarity] >= RANK.celestial ? [1568, 2093, 2637] : []).forEach((f, i) => setTimeout(() => tone(f, 0.3, 'triangle', 0.1), i * 90));
       setTimeout(() => {
         flash(RANK[r.rarity] >= RANK.mythic ? '#fff' : col, fx.flash); if (fx.shake) { el.style.setProperty('--sh', fx.shake); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
-        const dps = Math.round(d.dmg * d.pellets * 1000 / d.ms), bar = (v, mx) => `<i><u style="width:${Math.min(100, v / mx * 100)}%"></u></i>`;
+        const dps = isA ? 0 : Math.round(d.dmg * d.pellets * 1000 / d.ms), bar = (v, mx) => `<i><u style="width:${Math.min(100, v / mx * 100)}%"></u></i>`;
         const card = $('#cr-card'); card.hidden = false; card.className = `cr-card show r-${r.rarity}`; card.style.setProperty('--rc', col);
-        card.innerHTML = `${fx.rays ? `<div class="rays r${fx.rays}"></div>` : ''}<div class="face"><span class="rar">${C.RNAME[r.rarity]}</span><img src="${W.itemIcon(r.item, 'gun')}" alt=""><h3>${esc(r.name)}</h3>
-          <div class="stats"><div><span>Damage</span>${bar(d.dmg * d.pellets, 90)}<b>${d.dmg}${d.pellets > 1 ? '×' + d.pellets : ''}</b></div><div><span>Speed</span>${bar(1000 / d.ms, 15)}<b>${(1000 / d.ms).toFixed(1)}/s</b></div><div><span>Range</span>${bar(d.range, 90)}<b>${d.range}</b></div></div>
-          <p class="dps">${dps} damage a second${r.equipped ? ' · equipped!' : ''}</p>${r.dup ? `<p class="dup">Duplicate · +${fmt(r.coins)} coins back</p>` : ''}</div>`;
+        card.innerHTML = `${fx.rays ? `<div class="rays r${fx.rays}"></div>` : ''}<div class="face"><span class="rar">${C.RNAME[r.rarity]}</span><img src="${W.itemIcon(r.item, slot)}" alt=""><h3>${esc(r.name)}</h3>
+          ${isA ? `<div class="stats"><div><span>Health</span>${bar(d.hp, 160)}<b>+${d.hp}</b></div><div><span>Armour</span>${bar(d.red, 0.35)}<b>${Math.round(d.red * 100)}%</b></div></div>` : `<div class="stats"><div><span>Damage</span>${bar(d.dmg * d.pellets, 90)}<b>${d.dmg}${d.pellets > 1 ? '×' + d.pellets : ''}</b></div><div><span>Speed</span>${bar(1000 / d.ms, 15)}<b>${(1000 / d.ms).toFixed(1)}/s</b></div><div><span>Range</span>${bar(d.range, 90)}<b>${d.range}</b></div></div>`}
+          <p class="dps">${isA ? 'Extra health and less damage taken' : dps + ' damage a second'}${r.equipped ? ' · equipped!' : ''}</p>${abOf(r.item).map(t => `<p class="abl">${esc(t)}</p>`).join('')}${r.dup ? `<p class="dup">Duplicate · +${fmt(r.coins)} coins back</p>` : ''}</div>`;
         const parts = document.createElement('div'); parts.className = 'parts'; card.appendChild(parts);
         for (let i = 0; i < fx.parts; i++) { const p = document.createElement('i'), a = Math.random() * 6.283, dist = 120 + Math.random() * (160 + fx.parts * 2); p.style.cssText = `--x:${Math.cos(a) * dist}px;--y:${Math.sin(a) * dist - 40}px;--d:${Math.random() * 0.25}s;--s:${6 + Math.random() * 10}px;background:${r.rarity === 'mythic' || r.rarity === 'cosmic' ? `hsl(${Math.random() * 360},95%,60%)` : r.rarity === 'celestial' ? ['#fff', '#fff2a8', col][i % 3] : Math.random() < 0.3 ? '#fff' : col}`; parts.appendChild(p); }
-        $('#cr-b').innerHTML = `${r.equipped || r.dup ? '' : '<button class="btn black big" data-cr="equip">Equip</button>'}<button class="btn big" data-cr="again"${S.me.coins >= C.CRATE.price && r.left ? '' : ' disabled'}>Another ${fmt(C.CRATE.price)}</button><button class="btn big" data-cr="done">Done</button><span class="pill coin coins"></span>`; paintMe();
+        $('#cr-b').innerHTML = `${r.equipped || r.dup ? '' : '<button class="btn black big" data-cr="equip">Equip</button>'}<button class="btn big" data-cr="again"${S.me.coins >= K.price && r.left ? '' : ' disabled'}>Another ${fmt(K.price)}</button><button class="btn big" data-cr="done">Done</button><span class="pill coin coins"></span>`; paintMe();
       }, 450);
     }
     const finish = () => { st.stop(); el.remove(); S.crate = null; if (back === 'shop' || back === 'locker') showWardrobe(back); paintGun(); };
-    el.addEventListener('click', e => { const b = e.target.closest('[data-cr]'); if (!b || b.disabled) return; const a = b.dataset.cr; if (a === 'equip') { wear('gun', res.item); b.remove(); } else if (a === 'again') { finish(); crateReveal(); } else finish(); });
+    el.addEventListener('click', e => { const b = e.target.closest('[data-cr]'); if (!b || b.disabled) return; const a = b.dataset.cr; if (a === 'equip') { wear(slot, res.item); b.remove(); } else if (a === 'again') { finish(); crateReveal(kind); } else finish(); });
   }
 
   /* ---------------- actions ---------------- */
@@ -492,7 +497,7 @@
     buy(v) { send({ t: 'buy', item: v }); },
     hair(v) { setLook('hair', v); }, hc(v) { setLook('hc', +v); }, skin(v) { setLook('skin', +v); },
     col(v) { S.me.col = +v; send({ t: 'equip', col: +v }); if (S.stage) S.stage.figure(S.me.look, S.me.pet, W.PC[+v], gunFor()); paintWardrobe(); },
-    crate() { crateReveal(); },
+    crate(v) { crateReveal(v === 'armor' ? 'armor' : 'gun'); },
     daily() { send({ t: 'daily' }); SFX.pop(); }, buybox() { send({ t: 'buybox' }); SFX.click(); }, open() { reveal(); }
   };
   document.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b || b.disabled) return; const a = A[b.dataset.a]; if (a) { e.preventDefault(); ac(); a(b.dataset.v, b); } });

@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import '../public/catalog.js';
 import '../public/avatar-data.js';
 import '../public/guns.js';
+import '../public/armor.js';
 import '../public/extra-items.js';
 import '../public/auras.js';
 const C = globalThis.FOUND_CATALOG, D = globalThis.FOUND_AVATAR_DATA, G = globalThis.FOUND_GUNS;
@@ -23,7 +24,8 @@ const pick = (a, r) => a[Math.floor(r() * a.length)];
 /* older saves kept three kinds of box; they are all one kind now */
 /* bump SEASON to wipe everyone's coins, boxes and items the next time they connect (names and faces are kept) */
 export const SEASON = 2;
-const fix = p => { if (p.season !== SEASON) { p.season = SEASON; p.own = []; p.coins = 300; p.boxes = 1; p.pet = ''; p.daily = { last: '' }; p.idleAt = 0; if (p.look) Object.assign(p.look, { outfit: C.STARTER.includes(p.look.outfit) ? p.look.outfit : 'tee', hat: '', acc: '' }); } if (typeof p.boxes !== 'number') p.boxes = Object.values(p.boxes || {}).reduce((a, b) => a + (b | 0), 0); if (!p.daily) p.daily = { last: '' }; if (!p.own) p.own = []; if (!p.stats) p.stats = {}; if (!p.idleAt) p.idleAt = Date.now(); return p; };
+const gone = (p) => { if (Array.isArray(p.own)) { const n = p.own.length; p.own = p.own.filter(id => C.BY[id]); if (p.own.length !== n && p.gun && !C.BY[p.gun]) p.gun = ''; } if (p.gun && !C.BY[p.gun]) p.gun = ''; if (p.look && p.look.armor && !C.BY[p.look.armor]) p.look.armor = ''; };
+const fix = p => { gone(p); if (p.season !== SEASON) { p.season = SEASON; p.own = []; p.coins = 300; p.boxes = 1; p.pet = ''; p.daily = { last: '' }; p.idleAt = 0; if (p.look) Object.assign(p.look, { outfit: C.STARTER.includes(p.look.outfit) ? p.look.outfit : 'tee', hat: '', acc: '' }); } if (typeof p.boxes !== 'number') p.boxes = Object.values(p.boxes || {}).reduce((a, b) => a + (b | 0), 0); if (!p.daily) p.daily = { last: '' }; if (!p.own) p.own = []; if (!p.stats) p.stats = {}; if (!p.idleAt) p.idleAt = Date.now(); return p; };
 
 export function randomWord(rnd = Math.random, used) { const free = used ? WORDS.filter(w => !used.has(w)) : WORDS, list = free.length ? free : WORDS; return pick(list, rnd); }
 export function newProfile(id, key, now, rnd = Math.random, used) {
@@ -50,7 +52,7 @@ export function equip(p, b) {
   if (Number.isInteger(L.skin) && L.skin >= 0 && L.skin < D.SKIN.length) out.skin = L.skin;
   if (Number.isInteger(L.hc) && L.hc >= 0 && L.hc < D.HAIRC.length) out.hc = L.hc;
   if (typeof L.hair === 'string' && D.HAIRS.some(h => h[0] === L.hair)) out.hair = L.hair;
-  for (const slot of ['outfit', 'hat', 'acc', 'aura']) if (typeof L[slot] === 'string') {
+  for (const slot of ['outfit', 'hat', 'acc', 'aura', 'armor']) if (typeof L[slot] === 'string') {
     const id = L[slot]; if (id === '' && slot !== 'outfit') out[slot] = '';
     else if (C.BY[id] && C.BY[id].slot === slot && owns(p, id)) out[slot] = id;
   }
@@ -63,7 +65,7 @@ export function equip(p, b) {
 /* the shop: buy one item at its price */
 export function buyItem(p, id) {
   const it = C.BY[id]; if (!it) throw new Error('No such item.'); if (owns(p, id)) throw new Error('You already own that.');
-  const price = C.PRICE[it.rarity]; if (p.coins < price) throw new Error('Not enough coins.');
+  const price = C.price(id); if (p.coins < price) throw new Error('Not enough coins.');
   p.coins -= price; p.own.push(id); return { item: id, slot: it.slot, name: it.name, rarity: it.rarity, price };
 }
 export function buyBox(p) { fix(p); if (p.coins < C.BOX.price) throw new Error('Not enough coins.'); p.coins -= C.BOX.price; p.boxes++; }
@@ -73,43 +75,48 @@ export function openBox(p, rnd = Math.random) {
   fix(p); if (!p.boxes) throw new Error('No Mystery Box to open.');
   p.boxes--; const order = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'celestial', 'cosmic'];
   let r = rnd() * 100, at = 0; for (let i = 0; i < order.length; i++) { at = i; const o = C.BOX.odds[order[i]]; if (r < o) break; r -= o; }
-  const pool = k => C.ITEMS.filter(i => i[3] === order[k] && i[1] !== 'gun' && !owns(p, i[0]));
+  const pool = k => C.ITEMS.filter(i => i[3] === order[k] && i[1] !== 'gun' && i[1] !== 'armor' && !owns(p, i[0]));
   let list = []; for (let d = 0; d < order.length && !list.length; d++) for (const k of [at - d, at + d]) if (k >= 0 && k < order.length && !list.length) list = pool(k);
   if (!list.length) { p.coins += C.BOX.price; return { coins: C.BOX.price }; }   // you own everything: your coins back
   const it = list[Math.floor(rnd() * list.length)]; p.own.push(it[0]);
   return { item: it[0], slot: it[1], name: it[2], rarity: it[3] };
 }
-/* the gun crate: costs coins and rolls a rarity by its odds (so the rare ones stay rare), then gives a gun of that rarity you don't own yet.
-   If you already own every gun of the rarity it rolled, it is a duplicate and pays CRATE.dup of that rarity's shop price back instead. A better gun is equipped for you. */
-export function openCrate(p, rnd = Math.random) {
-  fix(p); if (p.coins < C.CRATE.price) throw new Error('Not enough coins.');
-  const order = C.RARITY.filter(r => r !== 'starter' && C.ITEMS.some(i => i[1] === 'gun' && i[3] === r)), all = k => C.ITEMS.filter(i => i[1] === 'gun' && i[3] === order[k]), pool = k => all(k).filter(i => !owns(p, i[0]));
-  const left = order.reduce((n, _, k) => n + pool(k).length, 0); if (!left) throw new Error('You own every gun!');
-  p.coins -= C.CRATE.price;
-  let r = rnd() * 100, at = order.length - 1; for (let i = 0; i < order.length; i++) { const o = C.CRATE.odds[order[i]] || 0; if (r < o) { at = i; break; } r -= o; }
+/* the gun crate and the armour box: cost coins and roll a rarity by their odds (so the rare ones stay rare), then give a piece of that rarity you don't own yet.
+   Shop-only premium pieces (those with their own price) are never in a crate. If you already own every piece of the rarity it rolled, it is a duplicate and pays back a tenth of that rarity's shop price.
+   A better gun or armour is worn for you. */
+export function openCrate(p, rnd = Math.random, kind = 'gun') {
+  fix(p); const K = C.CRATES[kind]; if (!K) throw new Error('No such box.'); const slot = kind === 'armor' ? 'armor' : 'gun'; if (p.coins < K.price) throw new Error('Not enough coins.');
+  const inBox = i => i[1] === slot && !C.BY[i[0]].price;
+  const order = C.RARITY.filter(r => r !== 'starter' && C.ITEMS.some(i => inBox(i) && i[3] === r)), all = k => C.ITEMS.filter(i => inBox(i) && i[3] === order[k]), pool = k => all(k).filter(i => !owns(p, i[0]));
+  const left = order.reduce((n, _, k) => n + pool(k).length, 0); if (!left) throw new Error(kind === 'armor' ? 'You own every armour!' : 'You own every gun!');
+  p.coins -= K.price;
+  let r = rnd() * 100, at = order.length - 1; for (let i = 0; i < order.length; i++) { const o = K.odds[order[i]] || 0; if (r < o) { at = i; break; } r -= o; }
   const fresh = pool(at);
-  if (!fresh.length) { const it = all(at)[Math.floor(rnd() * all(at).length)], back = Math.round(C.PRICE[order[at]] * C.CRATE.dup); p.coins += back; return { item: it[0], slot: 'gun', name: it[2], rarity: it[3], dup: true, coins: back, equipped: false, left }; }
+  if (!fresh.length) { const it = all(at)[Math.floor(rnd() * all(at).length)], back = Math.round(C.PRICE[order[at]] * K.dup); p.coins += back; return { item: it[0], slot, name: it[2], rarity: it[3], dup: true, coins: back, left }; }
   const it = fresh[Math.floor(rnd() * fresh.length)]; p.own.push(it[0]);
-  const rank = id => C.RARITY.indexOf(C.BY[id].rarity), equipped = rank(it[0]) > rank(p.gun || G.START); if (equipped) p.gun = it[0];
-  return { item: it[0], slot: 'gun', name: it[2], rarity: it[3], dup: false, equipped, left: left - 1 };
+  const rank = id => id ? C.RARITY.indexOf(C.BY[id].rarity) : -1;
+  let equipped;
+  if (slot === 'gun') { equipped = rank(it[0]) > rank(p.gun || G.START); if (equipped) p.gun = it[0]; }
+  else { equipped = rank(it[0]) > rank(p.look.armor); if (equipped) p.look.armor = it[0]; }
+  return { item: it[0], slot, name: it[2], rarity: it[3], dup: false, equipped, left: left - 1 };
 }
 /* one free Mystery Box a day (UTC) */
 export function claimDaily(p, now) { fix(p); if (p.daily.last === today(now)) throw new Error('Come back tomorrow.'); p.daily.last = today(now); p.boxes++; }
 
-/* idle earning: coins build up while you are away, 30 an hour plus 2 for every item you own, for up to 8 hours */
-export const IDLE = { base: 30, perItem: 2, capH: 8 };
+/* idle earning: coins build up while you are away, 250 an hour plus 15 for every item you own, for up to 8 hours */
+export const IDLE = { base: 250, perItem: 15, capH: 8 };
 export const idleRate = p => IDLE.base + IDLE.perItem * (p.own || []).length;
 export function idleOf(p, now) { fix(p); return Math.floor(Math.min(IDLE.capH, Math.max(0, now - p.idleAt) / 3600000) * idleRate(p)); }
 export function claimIdle(p, now) { const n = idleOf(p, now); if (!n) throw new Error('Nothing to collect yet.'); p.coins += n; p.idleAt = now; return n; }
 /* the daily wheel: one spin a day (UTC) */
-export const WHEEL = [[30, { coins: 50 }], [30, { coins: 100 }], [20, { coins: 200 }], [10, { coins: 400 }], [9, { box: 1 }], [1, { coins: 1000 }]];
+export const WHEEL = [[30, { coins: 400 }], [30, { coins: 800 }], [20, { coins: 1600 }], [10, { coins: 3200 }], [9, { box: 1 }], [1, { coins: 8000 }]];
 export function spin(p, now, rnd = Math.random) {
   fix(p); if (p.daily.spin === today(now)) throw new Error('One spin a day. Come back tomorrow.'); p.daily.spin = today(now);
   let r = rnd() * 100, prize = WHEEL[0][1]; for (const [w, pr] of WHEEL) { if (r < w) { prize = pr; break; } r -= w; }
   if (prize.coins) p.coins += prize.coins; else p.boxes += prize.box; return prize;
 }
-/* the menu game (odd one out): 20 coins a win, 10 paid wins a day */
-export const MINI = { coins: 20, perDay: 10, ms: 12000 };
+/* the menu game (odd one out): 150 coins a win, 10 paid wins a day */
+export const MINI = { coins: 150, perDay: 10, ms: 12000 };
 export function miniLeft(p, now) { fix(p); const m = p.daily.mini; return m && m.d === today(now) ? Math.max(0, MINI.perDay - m.n) : MINI.perDay; }
 export function miniWin(p, now) { if (!miniLeft(p, now)) return 0; const m = p.daily.mini && p.daily.mini.d === today(now) ? p.daily.mini : (p.daily.mini = { d: today(now), n: 0 }); m.n++; p.coins += MINI.coins; return MINI.coins; }
 /* gifting coins to someone in your party */

@@ -81,6 +81,8 @@
     if (/^scarf_/.test(look.acc)) { const cc = D.CLUBCOL && D.CLUBCOL[look.acc.slice(6)] || ['#7a52ff', '#ffffff']; add(bacc, 0.6, 0.11, 0.4, cc[0], 0, 0.95, 0); add(bacc, 0.6, 0.04, 0.41, cc[1], 0, 0.95, 0, 0); add(bacc, 0.12, 0.3, 0.04, cc[0], -0.14, 0.78, 0.19); add(bacc, 0.12, 0.08, 0.05, cc[1], -0.14, 0.66, 0.19, 0); }
     if (look.acc === 'cape') add(bacc, 0.52, 0.64, 0.04, 0xff4b3e, 0, 0.62, -0.18);
     if (D.ACCV[look.acc]) { vox(bacc, D.ACCV[look.acc].b); vox(hacc, D.ACCV[look.acc].h); }
+    const AM = look.armor && globalThis.FOUND_ARMOR && globalThis.FOUND_ARMOR.BY[look.armor];
+    if (AM) { add(bacc, 0.56, 0.38, 0.06, AM.c1, 0, 0.7, 0.18); add(bacc, 0.56, 0.38, 0.06, AM.c1, 0, 0.7, -0.18); add(bacc, 0.58, 0.07, 0.36, AM.c2, 0, 0.47, 0); add(bacc, 0.2, 0.06, 0.07, AM.c2, 0, 0.7, 0.215, 0); [-1, 1].forEach(sg => add(bacc, 0.2, 0.1, 0.28, AM.c2, sg * 0.35, 0.97, 0)); }
     if (look.acc === 'phoenix') { const fire = [0xff4b3e, 0xff9f1c, 0xffd60a].map(c => new THREE.MeshPhongMaterial({ color: c, emissive: c, emissiveIntensity: 0.6 })); [-1, 1].forEach(sg => { add(bacc, 0.22, 0.46, 0.05, fire[0], sg * 0.34, 0.8, -0.2); add(bacc, 0.16, 0.36, 0.05, fire[1], sg * 0.53, 0.92, -0.2); add(bacc, 0.12, 0.26, 0.05, fire[2], sg * 0.68, 1.04, -0.2); }); }
     if (look.acc === 'wings') [-1, 1].forEach(sg => { add(bacc, 0.2, 0.4, 0.05, 0xffffff, sg * 0.33, 0.78, -0.2); add(bacc, 0.14, 0.28, 0.05, 0xffffff, sg * 0.5, 0.88, -0.2); add(bacc, 0.1, 0.16, 0.05, 0xffffff, sg * 0.62, 0.96, -0.2); });
     /* the head and a face that can blink, look around and smile */

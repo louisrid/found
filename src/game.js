@@ -9,8 +9,9 @@
 import '../public/objects.js';
 import '../public/layout.js';
 import '../public/guns.js';
+import '../public/armor.js';
 import { publicOf, addBox, owns } from './profiles.js';
-const OBJ = globalThis.FOUND_OBJECTS, LAY = globalThis.FOUND_LAYOUT, GUNS = globalThis.FOUND_GUNS;
+const OBJ = globalThis.FOUND_OBJECTS, LAY = globalThis.FOUND_LAYOUT, GUNS = globalThis.FOUND_GUNS, AR = globalThis.FOUND_ARMOR;
 
 export const AB = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 export const CFG = { maxPlayers: 12, pickMs: 8000, soloHideMs: 3000, resultsMs: 9000, swapMs: 5000, readyMs: 3000,
@@ -18,8 +19,8 @@ export const CFG = { maxPlayers: 12, pickMs: 8000, soloHideMs: 3000, resultsMs: 
   findPts: 250, allFoundBonus: 300, survivePts: 400, perSecond: 3, maxSpeed: 32,
   /* hints: in the last 30% of the seek the seeker is told which objects are still hidden. Moving: hiders earn a bonus for changing spot */
   /* hint 1 (last 30%): which objects; hint 2 (last 15%): which rooms. A hider who stays within 2 m for 20 s starts twitching */
-  /* every player earns 1,000 coins a minute (100 every 6 s). Guns (always on in the lobby): 100 hp, 150 coins a kill, back after 3 s with 2 s of shield */
-  payMs: 6000, payCoins: 100, killCoins: 10000, deathCoins: 3000, repeatKillMs: 20000, respawnMs: 3000, shieldMs: 2000, pickupMs: 4500, pickupMax: 9, pickupR: 2.8,
+  /* every player earns 2,000 coins a minute (200 every 6 s). Guns (always on in the lobby): 150 hp (armour adds more), 12,000 coins a kill, back after 3 s with 2 s of shield */
+  payMs: 6000, payCoins: 200, killCoins: 12000, deathCoins: 4000, repeatKillMs: 20000, respawnMs: 3000, shieldMs: 2000, pickupMs: 4500, pickupMax: 9, pickupR: 2.8,
   hintAt: 0.3, hint2At: 0.15, moveBonus: 40, moveDist: 8, moveEveryMs: 10000, moveMax: 5, restlessMs: 20000, stillDist: 2 };
 /* each map: how long hiders get, how long seekers get, how many other objects and gift boxes are scattered */
 export const MAPCFG = {
@@ -52,7 +53,7 @@ export class Party {
   view(p) {
     const shown = this.live || this.phase === 'results';
     return Object.assign(publicOf(p.prof), { score: p.total + (this.phase === 'results' ? 0 : p.score), finds: p.finds, ready: p.ready, role: p.role, found: p.found, spec: !!p.spec,
-      prop: shown ? p.prop : null, picked: !!p.prop, here: !!p.conn, hp: this.guns ? p.hp : 0, dead: !!p.deadAt, kills: p.kills || 0 });
+      prop: shown ? p.prop : null, picked: !!p.prop, here: !!p.conn, hp: this.guns ? p.hp : 0, mhp: this.guns ? this.mh(p) : 0, dead: !!p.deadAt, kills: p.kills || 0 });
   }
   state() {
     return { t: 'party', code: this.code, pub: this.pub, host: this.host, guns: this.guns, pk: this.pickups.map(k => [k.id, k.kind, k.x, k.z]), phase: this.phase, mode: this.phase === 'lobby' ? modeFor(this.players.size) : this.mode,
@@ -79,6 +80,7 @@ export class Party {
       /* joining mid-round: watch and wander until the next one */
       p = { id: prof.id, prof, conn, score: 0, total: 0, finds: 0, ready: false, role: null, orig: null, prop: null, offer: null, found: false, turns: 0, tagAt: 0,
         x: 0, z: 0, y: 0, ry: 0, at: this.now(), moved: true, gone: 0, spec: this.phase !== 'lobby', hp: GUNS.HP, deadAt: 0, kills: 0, shotAt: 0, shield: 0, payAt: this.now() + this.cfg.payMs };
+      p.mhp = this.mh(p); p.hp = p.mhp;
       this.players.set(prof.id, p);
       this.spawn(p, this.players.size - 1);
     }
@@ -205,40 +207,77 @@ export class Party {
     if (fixed) this.io.one(p, { t: 'fix', x: r2(x), z: r2(z) });
   }
   /* ---------- guns: always on in the lobby; everyone there can shoot ---------- */
-  revive() { for (const q of this.players.values()) { q.hp = GUNS.HP; q.deadAt = 0; q.shield = 0; } }
+  armor(q) { const id = q.prof.look && q.prof.look.armor; return id && owns(q.prof, id) ? AR.of(id) : AR.NONE; }
+  mh(q) { return GUNS.HP + this.armor(q).hp; }
+  fill(q) { q.mhp = this.mh(q); q.hp = q.mhp; q.burn = null; q.lastUsed = false; }
+  /* wearing other armour changes your most health but keeps your share of it */
+  refit(q) { const m = this.mh(q), old = q.mhp || GUNS.HP; if (m === old) return; q.hp = q.deadAt ? 0 : Math.max(1, Math.round(q.hp / old * m)); q.mhp = m; this.io.one(q, { t: 'hit', id: q.id, hp: q.hp, dmg: 0, by: q.id, heal: 1 }); this.sync(); }
+  heal(q, n) { const before = q.hp; q.hp = Math.min(this.mh(q), q.hp + n); if (q.hp !== before) this.io.one(q, { t: 'hit', id: q.id, hp: q.hp, dmg: 0, by: q.id, heal: 1 }); }
+  revive() { for (const q of this.players.values()) { this.fill(q); q.deadAt = 0; q.shield = 0; } }
   setGuns(on) { if (this.phase !== 'lobby') return; this.guns = !!on; this.pickups = []; this.revive(); this.io.all(this, { t: 'guns', on: this.guns }); this.sync(); }
   /* hitscan: each pellet goes out along the aim and hits the nearest player in its path (a generous width, because there is no crosshair) */
   inSafe(p) { const S = LAY.lobby.safe; return this.phase === 'lobby' && Math.hypot(p.x - S.x, p.z - S.z) < S.r; }
+  targetable(q, p, now) { return q !== p && !q.spec && !q.deadAt && !this.inSafe(q) && now >= q.shield && !(q.rolling && now - q.rollStart <= 450); }   // a roll dodges
   shoot(p, b) {
     if (!this.guns || this.phase !== 'lobby' || p.deadAt || p.spec || this.inSafe(p)) return;
-    const now = this.now(), id = owns(p.prof, p.prof.gun) && GUNS.BY[p.prof.gun] ? p.prof.gun : GUNS.START, g = GUNS.BY[id];
+    const now = this.now(), id = owns(p.prof, p.prof.gun) && GUNS.BY[p.prof.gun] ? p.prof.gun : GUNS.START, g = GUNS.BY[id], ar = this.armor(p);
     if (now - p.shotAt < g.ms * 0.85) return; p.shotAt = now;
     const ry = Number.isFinite(+b.ry) ? +b.ry : p.ry; p.ry = ry;
-    const rays = [], dmg = new Map();
+    const rays = [], dmg = new Map(), mult = (now < p.rageUntil ? 2 : 1) * (ar.berserk && p.hp < this.mh(p) / 3 ? 1.4 : 1), wide = (g.assist || 0) + (g.lock || 0) * 0.15;
+    let crit = false;
     for (let k = 0; k < g.pellets; k++) {
-      const a = ry + (g.pellets > 1 ? (k / (g.pellets - 1) - 0.5) * g.spread * 2 : 0) + (this.rnd() - 0.5) * (g.pellets > 1 ? g.spread * 0.4 : g.spread) + (this.rnd() - 0.5) * 2 * (g.jit || 0), sx = Math.sin(a), sz = Math.cos(a);
-      let best = null, bd = g.range;
+      const a = ry + (g.pellets > 1 ? (k / (g.pellets - 1) - 0.5) * g.spread * 2 : 0) + (this.rnd() - 0.5) * (g.pellets > 1 ? g.spread * 0.4 : g.spread) + (this.rnd() - 0.5) * 2 * (g.jit || 0), sx = Math.sin(a), sz = Math.cos(a), cand = [];
       for (const q of this.players.values()) {
-        if (q === p || q.spec || q.deadAt || this.inSafe(q) || now < q.shield || (q.rolling && now - q.rollStart <= 450)) continue;   // a roll dodges
+        if (!this.targetable(q, p, now)) continue;
         const dx = q.x - p.x, dz = q.z - p.z, fwd = dx * sx + dz * sz, side = Math.abs(dx * sz - dz * sx);
-        if (fwd > 0.3 && fwd <= bd && side <= 0.95 + (g.assist || 0) + fwd * 0.02) { best = q; bd = fwd; }
+        if (fwd > 0.3 && fwd <= g.range && side <= 0.95 + wide + fwd * 0.02) cand.push([fwd, q]);
       }
-      rays.push([r2(p.x + sx * bd), r2(p.z + sz * bd), best ? best.id : 0]);
-      if (best) dmg.set(best, (dmg.get(best) || 0) + g.dmg * (now < p.rageUntil ? 2 : 1));
+      cand.sort((x, y) => x[0] - y[0]);
+      const take = cand.slice(0, g.ab === 'pierce' ? 3 : 1), bd = take.length ? take[take.length - 1][0] : g.range, c = g.ab === 'crit' && this.rnd() < 0.2; if (c) crit = true;
+      rays.push([r2(p.x + sx * bd), r2(p.z + sz * bd), take.length ? take[0][1].id : 0]);
+      for (const [, q] of take) dmg.set(q, (dmg.get(q) || 0) + g.dmg * mult * (c ? 2 : 1));
     }
     this.io.all(this, { t: 'shot', id: p.id, g: id, ry: r2(ry), e: rays });
     for (const [q, d] of dmg) {
-      q.hp = Math.max(0, q.hp - d); this.io.all(this, { t: 'hit', id: q.id, hp: q.hp, dmg: d, by: p.id });
-      if (q.hp <= 0) {
-        /* free for all: a kill pays the killer (not again for the same victim within repeatKillMs, so two friends cannot farm each other) and the victim loses some coins */
-        q.deadAt = now; q.kills = 0; p.kills = (p.kills || 0) + 1; q.rageUntil = 0;
-        const again = p.lastKill && p.lastKill.id === q.id && now - p.lastKill.at < this.cfg.repeatKillMs, pay = again ? 0 : this.cfg.killCoins, lost = Math.min(q.prof.coins, this.cfg.deathCoins); p.lastKill = { id: q.id, at: now };
-        p.prof.coins += pay; q.prof.coins -= lost; this.io.me(p); this.io.me(q); if (this.io.touch) { this.io.touch(p); this.io.touch(q); }
-        this.io.all(this, { t: 'kill', by: p.id, id: q.id, g: id, coins: pay, lost }); this.sync();
-      }
+      const dealt = this.damage(q, d, p, now, id, { crit });
+      if (dealt > 0 && g.ab === 'vamp') this.heal(p, Math.round(dealt * 0.3));
+      if (!dealt) continue;
+      if (g.ab === 'burn' && !q.deadAt) q.burn = { until: now + 3000, next: now + 700, by: p.id, g: id, d: Math.max(3, Math.round(g.dmg * 0.3)) };
+      if (g.ab === 'chain') { let best = null, bd = 10; for (const o of this.players.values()) { if (o === q || !this.targetable(o, p, now)) continue; const dd = Math.hypot(o.x - q.x, o.z - q.z); if (dd < bd) { bd = dd; best = o; } } if (best) this.damage(best, d * 0.6, p, now, id, { sec: true }); }
+      if (g.ab === 'splash') for (const o of this.players.values()) if (o !== q && this.targetable(o, p, now) && Math.hypot(o.x - q.x, o.z - q.z) < 4.5) this.damage(o, d * 0.5, p, now, id, { sec: true });
     }
   }
-  /* things that spawn on the grass while guns are on: a heart (+50 hp), a shield bubble (5 s), a coin bag (+1,000) and a rage orb (double damage for 8 s) */
+  /* one hit: armour cuts it (or dodges it), thorns give some back, and at zero health the victim is out */
+  damage(q, d, p, now, gid, opt = {}) {
+    if (q.deadAt || q.hp <= 0) return 0;
+    const ar = this.armor(q);
+    if (ar.dodge && this.rnd() < ar.dodge) { this.io.all(this, { t: 'hit', id: q.id, hp: q.hp, dmg: 0, by: p.id, dodge: 1 }); return 0; }
+    d = Math.max(1, Math.round(d * (1 - ar.red)));
+    if (ar.last && !q.lastUsed && q.hp - d <= 0) { q.lastUsed = true; d = q.hp - 1; q.shield = now + 2000; }   // last stand
+    q.hp = Math.max(0, q.hp - d); q.hurtAt = now;
+    this.io.all(this, { t: 'hit', id: q.id, hp: q.hp, dmg: d, by: p.id, crit: opt.crit ? 1 : 0 });
+    if (ar.thorns && !opt.noReflect && !p.deadAt && p !== q) this.damage(p, d * ar.thorns, q, now, gid, { noReflect: true, sec: true });
+    if (q.hp <= 0) this.die(p, q, now, gid);
+    return d;
+  }
+  die(p, q, now, gid) {
+    /* free for all: a kill pays the killer (not again for the same victim within repeatKillMs, so two friends cannot farm each other) and the victim loses some coins */
+    q.deadAt = now; q.kills = 0; p.kills = (p.kills || 0) + 1; q.rageUntil = 0; q.burn = null;
+    const again = p.lastKill && p.lastKill.id === q.id && now - p.lastKill.at < this.cfg.repeatKillMs, pay = again ? 0 : this.cfg.killCoins, lost = Math.min(q.prof.coins, this.cfg.deathCoins); p.lastKill = { id: q.id, at: now };
+    p.prof.coins += pay; q.prof.coins -= lost; this.io.me(p); this.io.me(q); if (this.io.touch) { this.io.touch(p); this.io.touch(q); }
+    this.io.all(this, { t: 'kill', by: p.id, id: q.id, g: gid, coins: pay, lost }); this.sync();
+  }
+  /* burning and armour regeneration */
+  gearTick(now) {
+    if (!this.guns || this.phase !== 'lobby') return;
+    for (const q of this.players.values()) {
+      if (q.deadAt || q.spec) { q.burn = null; continue; }
+      if (q.burn) { if (now >= q.burn.until || now < q.shield || this.inSafe(q)) q.burn = null; else if (now >= q.burn.next) { q.burn.next = now + 700; const by = this.players.get(q.burn.by); if (by) this.damage(q, q.burn.d, by, now, q.burn.g, { noReflect: true, sec: true }); else q.burn = null; } }
+      const ar = this.armor(q);
+      if (ar.regen && !q.deadAt && q.hp < this.mh(q) && now - (q.hurtAt || 0) > 4000 && now >= (q.regenAt || 0)) { q.regenAt = now + 1000; this.heal(q, ar.regen); }
+    }
+  }
+  /* things that spawn on the grass while guns are on: a heart (+60 hp), a shield bubble (5 s), a coin bag (+5,000) and a rage orb (double damage for 8 s) */
   spawnPickup(now) {
     const kinds = [['heal', 38], ['coins', 27], ['shield', 20], ['rage', 15]]; let r = this.rnd() * 100, kind = 'heal'; for (const [k, w] of kinds) { if (r < w) { kind = k; break; } r -= w; }
     for (let tries = 0; tries < 12; tries++) {
@@ -255,17 +294,17 @@ export class Party {
     for (const q of this.players.values()) {
       if (q.deadAt || q.spec) continue;
       for (let i = this.pickups.length - 1; i >= 0; i--) { const k = this.pickups[i]; if (Math.hypot(k.x - q.x, k.z - q.z) > this.cfg.pickupR) continue;
-        if (k.kind === 'heal' && q.hp >= GUNS.HP) continue;   // a full-health player leaves hearts for others
+        if (k.kind === 'heal' && q.hp >= this.mh(q)) continue;   // a full-health player leaves hearts for others
         this.pickups.splice(i, 1); changed = true;
-        if (k.kind === 'heal') q.hp = Math.min(GUNS.HP, q.hp + 50); else if (k.kind === 'shield') q.shield = now + 5000; else if (k.kind === 'rage') q.rageUntil = now + 8000;
-        else { q.prof.coins += 1000; this.io.me(q); if (this.io.touch) this.io.touch(q); }
+        if (k.kind === 'heal') this.heal(q, 60); else if (k.kind === 'shield') q.shield = now + 5000; else if (k.kind === 'rage') q.rageUntil = now + 8000;
+        else { q.prof.coins += 5000; this.io.me(q); if (this.io.touch) this.io.touch(q); }
         this.io.all(this, { t: 'pk', del: k.id, by: q.id, kind: k.kind, x: k.x, z: k.z }); }
     }
     if (changed) this.sync();
   }
   respawns(now) {
     for (const q of this.players.values()) if (q.deadAt && now - q.deadAt >= this.cfg.respawnMs) {
-      q.deadAt = 0; q.hp = GUNS.HP; q.shield = now + this.cfg.shieldMs; this.spawn(q, Math.floor(this.rnd() * 12));
+      q.deadAt = 0; this.fill(q); q.shield = now + this.cfg.shieldMs + this.armor(q).ward; this.spawn(q, Math.floor(this.rnd() * 12));
       this.io.all(this, { t: 'spawned', id: q.id }); this.sync();
     }
   }
@@ -322,7 +361,7 @@ export class Party {
     ps.forEach((p, i) => {
       const prof = p.prof, won = p.survived || (p.orig === 'seeker' && win === 'seekers'), solo = this.mode === 'solo', boxes = (R.gifts[p.id] || 0) + (won && !solo ? 1 : 0);
       /* practice against computer hiders pays a quarter, so it cannot out-earn playing with friends */
-      const coins = Math.round((p.score / 2 + 40) * (solo ? 0.25 : 1));
+      const coins = Math.round((p.score * 4 + 300) * (solo ? 0.25 : 1));
       prof.coins += coins; addBox(prof, boxes);
       prof.stats.games = (prof.stats.games || 0) + 1; if (won && n > 1) prof.stats.wins = (prof.stats.wins || 0) + 1;
       p.reward = { coins, boxes, place: i + 1, won };
@@ -346,9 +385,9 @@ export class Party {
   tick() {
     const now = this.now(), R = this.round;
     for (const [id, p] of this.players) if (!p.conn && p.gone && now - p.gone > 20000) this.remove(id);
-    /* everyone connected earns 1,000 coins a minute */
+    /* everyone connected earns 2,000 coins a minute */
     for (const p of this.players.values()) if (p.conn && now >= p.payAt) { p.payAt = now + this.cfg.payMs; if (this.cfg.payCoins) { p.prof.coins += this.cfg.payCoins; this.io.me(p); if (this.io.touch) this.io.touch(p); } }
-    if (this.guns) this.respawns(now);
+    if (this.guns) { this.respawns(now); this.gearTick(now); }
     this.pickupTick(now);
     if (this.phase === 'lobby') { if (this.readyAt && now >= this.readyAt) { this.readyAt = 0; this.start(); } }
     else if (this.phase === 'pick') { if (now >= R.pickEnds) this.beginHide(); }

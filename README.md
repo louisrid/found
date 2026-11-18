@@ -162,3 +162,11 @@ round clock run out before the test's seeker arrives.
 `render.yaml` runs `npm start` with a `/api/ping` health check. Set `DATABASE_URL` to a Postgres database so
 profiles survive restarts. Run a single instance: parties live in memory. The Postgres path has not been run against
 a real database yet.
+
+## Guns, armour and boxes (v9)
+- Default health is 150. Armour (shop tab "Armour", 16 pieces) adds health and cuts damage, and many pieces have an ability: thorns, regen, dodge, berserk, last stand, ward.
+- 26 guns across nine tiers, mostly plain pistols, SMGs, rifles, shotguns and snipers. No gun one-shots you. A handful carry abilities: lifesteal, burn, pierce, chain lightning, splash, crit.
+- Five premium guns and two premium armours have their own very high prices (90,000 to 2,500,000) and are shop-only.
+- Three boxes: Clothes Box (stock, daily and wheel), Gun Crate (4,000) and Armour Box (3,500).
+- Economy: 2,000 coins a minute just for being in the lobby, 12,000 a kill, 4,000 lost per death, coin bags 5,000, round rewards x8.
+- Aim help is weak and only on the weakest guns; once you are aimed right at someone every gun locks on, and better guns lock harder and wobble less.
