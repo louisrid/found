@@ -122,6 +122,14 @@
     ringMesh = new THREE.Mesh(new THREE.RingGeometry(L.ring.r - 0.35, L.ring.r, 72), new THREE.MeshBasicMaterial({ color: K })); ringMesh.rotation.x = -Math.PI / 2; ringMesh.position.set(L.ring.x, 0.06, L.ring.z); g.add(ringMesh);
     ringFill = new THREE.Mesh(new THREE.CircleGeometry(L.ring.r - 0.35, 72), new THREE.MeshBasicMaterial({ color: K, transparent: true, opacity: 0.06 })); ringFill.rotation.x = -Math.PI / 2; ringFill.position.set(L.ring.x, 0.05, L.ring.z); g.add(ringFill);
     ringText = textPlane('READY', 5.2, 1.3, { alpha: 0.9 }); ringText.position.set(L.ring.x, 0.07, L.ring.z); g.add(ringText);
+    /* the golden safe zone around the spawn: a bright ring on the grass, a soft gold floor, a faint wall and a SAFE label */
+    const SZ = L.safe, GOLD = 0xffc400, gold = (o, op) => new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide });
+    const szRing = new THREE.Mesh(new THREE.RingGeometry(SZ.r - 0.55, SZ.r, 96), new THREE.MeshBasicMaterial({ color: GOLD })); szRing.rotation.x = -Math.PI / 2; szRing.position.set(SZ.x, 0.07, SZ.z); g.add(szRing);
+    const szIn = new THREE.Mesh(new THREE.RingGeometry(SZ.r - 1.15, SZ.r - 0.95, 96), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.9 })); szIn.rotation.x = -Math.PI / 2; szIn.position.set(SZ.x, 0.075, SZ.z); g.add(szIn);
+    const szFill = new THREE.Mesh(new THREE.CircleGeometry(SZ.r - 0.55, 96), gold(0, 0.2)); szFill.rotation.x = -Math.PI / 2; szFill.position.set(SZ.x, 0.055, SZ.z); g.add(szFill);
+    const szWall = new THREE.Mesh(new THREE.CylinderGeometry(SZ.r, SZ.r, 3.4, 96, 1, true), gold(0, 0.12)); szWall.position.set(SZ.x, 1.7, SZ.z); g.add(szWall);
+    const szText = textPlane('SAFE', 6, 1.5, { color: '#b87a00', alpha: 0.85 }); szText.position.set(SZ.x, 0.08, SZ.z - SZ.r + 2.2); g.add(szText);
+    anim.push({ fn: t => { if (W.map !== 'lobby') return; const s = 0.5 + 0.5 * Math.sin(t * 2); szFill.material.opacity = 0.14 + s * 0.1; szWall.material.opacity = 0.08 + s * 0.08; szIn.material.opacity = 0.55 + s * 0.4; } });
     anim.push({ fn: t => { if (W.map !== 'lobby') return; const k = W.ringK || 0; ringFill.material.opacity = 0.06 + k * 0.5 + (W.ring ? Math.sin(t * 5) * 0.03 + 0.05 : 0); ringFill.scale.setScalar(1); } });
   }
 

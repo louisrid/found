@@ -389,7 +389,9 @@
     const colliders = [];
     const ring = { x: 0, z: -9, r: 4.2 };
     const spawns = []; for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; spawns.push({ x: +(Math.sin(a) * 4.5).toFixed(2), z: +(8 + Math.cos(a) * 3).toFixed(2), ry: Math.PI }); }
-    return { kind: 'lobby', ring, colliders, spawns, bounds: { r: 58 } };
+    /* the golden safe zone around the spawn points: nobody can shoot or be shot inside it */
+    const safe = { x: 0, z: 8, r: 8 };
+    return { kind: 'lobby', ring, safe, colliders, spawns, bounds: { r: 58 } };
   }
   /* push a circle (player) out of every box; returns the corrected position */
   const BK = 8;

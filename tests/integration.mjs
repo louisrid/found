@@ -83,7 +83,7 @@ try {
     P2.send({ t: 'guns', on: false }); await sleep(150); assert.ok(P1.party.guns && !P1.msgs.some(m => m.t === 'err')); P2.send({ t: 'admin', code: 'x' }); await sleep(100); P1.close(); P2.close(); ok('there is no way to switch guns off'); }
   /* shots, hits and the crate go through the server */
   {
-    await walk(A, 0, 0); await walk(B2, 0, 12); A.fresh(); B2.fresh(); A.send({ t: 'shoot', ry: 0 }); const hit = await B2.wait(m => m.t === 'hit', 3000, 'hit'); assert.equal(hit.hp, 86); assert.ok((await A.wait(m => m.t === 'shot', 3000)).e.length >= 1); ok('a shot reaches everyone and damages the target');
+    await walk(A, 20, 0); await walk(B2, 20, 12); A.fresh(); B2.fresh(); A.send({ t: 'shoot', ry: 0 }); const hit = await B2.wait(m => m.t === 'hit', 3000, 'hit'); assert.equal(hit.hp, 86); assert.ok((await A.wait(m => m.t === 'shot', 3000)).e.length >= 1); ok('a shot reaches everyone and damages the target');
     A.fresh(); A.send({ t: 'crate' }); const cr = await Promise.race([A.wait(m => m.t === 'crated', 3000, 'crate').catch(() => null), A.wait(m => m.t === 'err', 3000, 'crate err').catch(() => null)]);
     if (cr && cr.t === 'crated') { assert.equal(cr.r.slot, 'gun'); ok('a gun crate opens and gives a gun'); } else { assert.match(cr.m, /Not enough/); ok('a gun crate needs 500 coins'); } }
   await sleep(250); const coins = A.me.coins; A.close(); B2.close(); await sleep(1800); await stop(); await start();

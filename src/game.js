@@ -208,8 +208,9 @@ export class Party {
   revive() { for (const q of this.players.values()) { q.hp = GUNS.HP; q.deadAt = 0; q.shield = 0; } }
   setGuns(on) { if (this.phase !== 'lobby') return; this.guns = !!on; this.pickups = []; this.revive(); this.io.all(this, { t: 'guns', on: this.guns }); this.sync(); }
   /* hitscan: each pellet goes out along the aim and hits the nearest player in its path (a generous width, because there is no crosshair) */
+  inSafe(p) { const S = LAY.lobby.safe; return this.phase === 'lobby' && Math.hypot(p.x - S.x, p.z - S.z) < S.r; }
   shoot(p, b) {
-    if (!this.guns || this.phase !== 'lobby' || p.deadAt || p.spec) return;
+    if (!this.guns || this.phase !== 'lobby' || p.deadAt || p.spec || this.inSafe(p)) return;
     const now = this.now(), id = owns(p.prof, p.prof.gun) && GUNS.BY[p.prof.gun] ? p.prof.gun : GUNS.START, g = GUNS.BY[id];
     if (now - p.shotAt < g.ms * 0.85) return; p.shotAt = now;
     const ry = Number.isFinite(+b.ry) ? +b.ry : p.ry; p.ry = ry;
@@ -218,7 +219,7 @@ export class Party {
       const a = ry + (g.pellets > 1 ? (k / (g.pellets - 1) - 0.5) * g.spread * 2 : 0) + (this.rnd() - 0.5) * (g.pellets > 1 ? g.spread * 0.4 : g.spread), sx = Math.sin(a), sz = Math.cos(a);
       let best = null, bd = g.range;
       for (const q of this.players.values()) {
-        if (q === p || q.spec || q.deadAt || now < q.shield || (q.rolling && now - q.rollStart <= 450)) continue;   // a roll dodges
+        if (q === p || q.spec || q.deadAt || this.inSafe(q) || now < q.shield || (q.rolling && now - q.rollStart <= 450)) continue;   // a roll dodges
         const dx = q.x - p.x, dz = q.z - p.z, fwd = dx * sx + dz * sz, side = Math.abs(dx * sz - dz * sx);
         if (fwd > 0.3 && fwd <= bd && side <= 1.6 + fwd * 0.04) { best = q; bd = fwd; }
       }
@@ -242,7 +243,7 @@ export class Party {
     const kinds = [['heal', 38], ['coins', 27], ['shield', 20], ['rage', 15]]; let r = this.rnd() * 100, kind = 'heal'; for (const [k, w] of kinds) { if (r < w) { kind = k; break; } r -= w; }
     for (let tries = 0; tries < 12; tries++) {
       const a = this.rnd() * Math.PI * 2, d = 7 + this.rnd() * 36, x = r2(Math.sin(a) * d), z = r2(Math.cos(a) * d);
-      if (this.pickups.some(k => Math.hypot(k.x - x, k.z - z) < 6)) continue;
+      if (this.pickups.some(k => Math.hypot(k.x - x, k.z - z) < 6) || Math.hypot(x - LAY.lobby.safe.x, z - LAY.lobby.safe.z) < LAY.lobby.safe.r + 2) continue;
       this.pickups.push({ id: ++this.pickN, kind, x, z }); return true;
     }
     return false;

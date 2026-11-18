@@ -356,7 +356,9 @@
   /* ---------------- guns: fire, health, the death card ---------------- */
   function fire() {
     if (!gunsOn() || S.dead || (S.layer && S.layer !== 'results') || S.reveal || S.crate) return;
-    const d = myGun(), t = performance.now(); if (t - (S.fireAt || 0) < d.ms) return; S.fireAt = t;
+    const d = myGun(), t = performance.now(), sf = globalThis.FOUND_LAYOUT.lobby.safe;
+    if (W.me && Math.hypot(W.me.x - sf.x, W.me.z - sf.z) < sf.r) { if (t - (S.safeAt || 0) > 2500) { S.safeAt = t; toast('Safe zone. Step out to fight.'); } return; }
+    if (t - (S.fireAt || 0) < d.ms) return; S.fireAt = t;
     const ry = W.aimAt(d.range); if (W.me) { W.me.ry = ry; W.aimHold = performance.now() + 260; }
     send({ t: 'shoot', ry: +ry.toFixed(3) });
   }
