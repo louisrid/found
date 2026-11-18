@@ -37,7 +37,7 @@ npm start                 # http://localhost:3000
 
 ## How a round works
 
-1. **Lobby.** Everyone stands in the READY ring to start (the host can also press Start). The host can choose the map
+1. **Lobby.** Everyone taps Hide & Seek then "I'm ready" to start (the host can also press Start now). The host can choose the map
    and, in a 1v1, a stake.
 2. **Pick (8 s).** Hiders choose one of three objects to become: a big one (×1.5 points), a medium one (×1.25) or a
    small one. The seeker is told they are the seeker.
